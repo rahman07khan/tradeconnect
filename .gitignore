@@ -1,0 +1,29 @@
+# .gitignore
+*.pyc
+__pycache__/
+db.sqlite3
+/static/
+*.log
+*.pot
+*.pyc
+*.pyo
+*.swp
+*.sqlite3
+/media
+
+# Environments
+.env
+*.env
+
+# Django specific
+*.log
+*.pot
+__pycache__/
+db.sqlite3
+/media
+
+# OS files
+.DS_Store
+.idea
+*.sublime-project
+*.sublime-workspace
