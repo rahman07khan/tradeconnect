@@ -1,4 +1,5 @@
 from django.db import models
+from users.models import CustomUser
 
 # Create your models here.
 class CategoryMaster(models.Model):
@@ -23,9 +24,10 @@ class ProductMaster(models.Model):
     modified_at=models.DateTimeField(auto_now_add=True)
     modified_by=models.IntegerField(blank=True,null=True)
     
-class Buy_product(models.Model):
+class BuyProduct(models.Model):
     category=models.ForeignKey(CategoryMaster,on_delete=models.CASCADE)
     product=models.ForeignKey(ProductMaster,on_delete=models.CASCADE)
+    user = models.ForeignKey(CustomUser,on_delete=models.CASCADE)
     quantity=models.PositiveIntegerField()
     total=models.DecimalField(max_digits=10, decimal_places=2)
     is_active=models.BooleanField(default=True)

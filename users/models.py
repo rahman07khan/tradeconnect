@@ -23,7 +23,7 @@ class CustomUser(AbstractUser):
 class RoleMaster(models.Model):
     name=models.CharField(max_length=50)
     description=models.CharField(max_length=50)
-    user=models.ForeignKey(CustomUser,on_delete=models.CASCADE)
+    # user=models.ForeignKey(CustomUser,on_delete=models.CASCADE)
     is_active=models.BooleanField(default=True)
     created_at=models.DateTimeField(auto_now_add=True)
     created_by=models.IntegerField(blank=True,null=True)
