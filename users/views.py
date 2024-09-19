@@ -176,7 +176,7 @@ class RegisterUserApi(APIView):
                             },status=status.HTTP_200_OK) 
                 else:
                     for user in users:
-                        mapping=Rolemapping.objects.get(id=u.id)
+                        mapping=Rolemapping.objects.get(id=RegisterUserApi.id)
                         if mapping.role.name in ['seller','buyer']:
                             data.append({
                                 "username":user.username,
