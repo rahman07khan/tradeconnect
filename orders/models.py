@@ -11,6 +11,8 @@ class CategoryMaster(models.Model):
     created_by=models.IntegerField(blank=True,null=True)
     modified_at=models.DateTimeField(auto_now_add=True)
     modified_by=models.IntegerField(blank=True,null=True)
+    history = HistoricalRecords()
+
     
 """product table"""   
 class ProductMaster(models.Model):
@@ -24,7 +26,8 @@ class ProductMaster(models.Model):
     created_by=models.IntegerField(blank=True,null=True)
     modified_at=models.DateTimeField(auto_now_add=True)
     modified_by=models.IntegerField(blank=True,null=True)
-    
+    history = HistoricalRecords()
+
 """ buy product"""
 class BuyProduct(models.Model):
     category=models.ForeignKey(CategoryMaster,on_delete=models.CASCADE)
@@ -38,6 +41,8 @@ class BuyProduct(models.Model):
     created_by=models.IntegerField(blank=True,null=True)
     modified_at=models.DateTimeField(auto_now_add=True)
     modified_by=models.IntegerField(blank=True,null=True)
+    history = HistoricalRecords()
+
 
 """"cart table"""
 class CartItems(models.Model):
