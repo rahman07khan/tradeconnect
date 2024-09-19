@@ -131,6 +131,86 @@ class RolemasterView(APIView):
 
 #register
 class RegisterUserApi(APIView):
+    """get user"""
+    def get(self,request):
+        user_id=request.user.id
+        maps=Rolemapping.objects.get(user=user_id)
+        user_type=request.query_params.get("user_type")
+        if maps.role.name in ['admin','manager']:
+            try:
+                
+                users=CustomUser.objects.filter(is_active=True)
+                data=[]
+                if user_type:
+                    if user_type=="buyer":
+                        for user in users:
+                            mapping=Rolemapping.objects.get(id=user.id)
+                            if mapping.role.name=="buyer":
+                                data.append({
+                                    "username":user.username,
+                                    "first_name":user.first_name,
+                                    "last_name":user.last_name,
+                                    "email":user.email,
+                                    "mobile_number":user.mobile_number
+                                })
+                        return Response({
+                                "status":"success",
+                                "message":"data retrieve successfully",
+                                "data":data
+                            },status=status.HTTP_200_OK) 
+                    elif user_type=="seller":
+                        for user in users:
+                            mapping=Rolemapping.objects.get(id=user.id)
+                            if mapping.role.name=="seller":
+                                data.append({
+                                    "username":user.username,
+                                    "first_name":user.first_name,
+                                    "last_name":user.last_name,
+                                    "email":user.email,
+                                    "mobile_number":user.mobile_number
+                                }) 
+                        return Response({
+                                "status":"success",
+                                "message":"data retrieve successfully",
+                                "data":data
+                            },status=status.HTTP_200_OK) 
+                else:
+                    for user in users:
+                        mapping=Rolemapping.objects.get(id=u.id)
+                        if mapping.role.name in ['seller','buyer']:
+                            data.append({
+                                "username":user.username,
+                                "first_name":user.first_name,
+                                "last_name":user.last_name,
+                                "email":user.email,
+                                "mobile_number":user.mobile_number,
+                                "rolename":mapping.role.name
+                            }) 
+                    return Response({
+                            "status":"success",
+                            "message":"data retrieve successfully",
+                            "data":data
+                        },status=status.HTTP_200_OK)
+            except CustomUser.DoesNotExist:
+                return Response({
+                "status":"error",
+                "message":"users not found"
+            },status=status.HTTP_400_BAD_REQUEST)
+            except Exception as e:
+                return Response({
+                    "status":"failed",
+                    "message":str(e)
+                },status=status.HTTP_400_BAD_REQUEST)
+        elif Rolemapping.DoesNotExist:
+            return Response({
+                "status":"error",
+                "message":"role not found"
+            },status=status.HTTP_400_BAD_REQUEST)
+        else:
+            return Response({
+                "status":"error",
+                "message":"only admin and manager is access"
+            },status=status.HTTP_401_UNAUTHORIZED)
     """create user"""
     def post(self,request):
         user=request.user

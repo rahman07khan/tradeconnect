@@ -65,7 +65,7 @@ class CategoryView(APIView):
                     category=CategoryMaster(
                         name=name,
                         description=description,
-                        created_by=1,
+                        created_by=request.user.id,
                     )
                     category.save()
                     return Response({
@@ -197,7 +197,7 @@ class ProductView(APIView) :
                         description=description,
                         price=price,
                         quantity=quantity,
-                        category=category.id,
+                        category=category,
                         created_by=user_id
                     )
                     product.save()
@@ -317,4 +317,4 @@ class ProductView(APIView) :
             return Response({
                 "status":"error",
                 "message":"only admin and manager is access"
-            },status=status.HTTP_401_UNAUTHORIZED)
+            },status=status.HTTP_401_UNAUTHORIZED)           
