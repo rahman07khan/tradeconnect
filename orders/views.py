@@ -4,9 +4,7 @@ from users.models import CustomUser,Rolemapping
 from rest_framework.views import APIView,status
 from rest_framework.response import Response
 from django.db import transaction
-
-
-
+from django.core.exceptions import ObjectDoesNotExist
 #CategoryMaster CRUD
 class CategoryView(APIView):
     def get(self,request):
@@ -172,12 +170,69 @@ class CategoryView(APIView):
             
             
 #ProductMaster Crud
-
-"""dbucbduicb"""
 class ProductView(APIView) :
-    """siucuidcducn"""
-    
-             
+    #get product details
+    def get(self, request):
+        user = request.user
+        category_id = request.query_params.get('category_id')
+        product_id = request.query_params.get('product_id')
+        try:
+            maps = Rolemapping.objects.get(user=user.id)
+            if maps.role.name not in ['admin', 'manager']:
+                return Response({
+                    "status": "error",
+                    "message": "Only admin and manager can access this."
+                }, status=status.HTTP_403_FORBIDDEN)
+                       
+            if category_id:
+                category = CategoryMaster.objects.get(id=category_id,is_active=True)
+                if product_id:
+                    product = ProductMaster.objects.get(id=product_id, category=category,is_active=True)
+                    data = {
+                        'product_id': product.id,
+                        'product_name': product.name,
+                        'description': product.description,
+                        'price': product.price,
+                        'quantity': product.quantity,
+                    }
+                    return Response({
+                        "status": "success",
+                        "message": "Product details",
+                        "data": data
+                    }, status=status.HTTP_200_OK)
+                
+                else:
+                    products = ProductMaster.objects.filter(category=category,is_active=True)
+                    data = [{
+                        'product_id': product.id,
+                        'product_name': product.name,
+                        'description': product.description,
+                        'price': product.price,
+                        'quantity': product.quantity,
+                    } for product in products]
+                    return Response({
+                        "status": "success",
+                        "message": "Products in the category",
+                        "data": data
+                    }, status=status.HTTP_200_OK)
+        except Rolemapping.DoesNotExist:
+            return Response({
+                "status": "error",
+                "message": "for this user role is not map."
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        except CategoryMaster.DoesNotExist:
+            return Response({
+                "status": "error",
+                "message": "category not exist."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        except ProductMaster.DoesNotExist:
+            return Response({
+                "status": "error",
+                "message": "product not exist."
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
     def post(self,request):
         user_id=request.user.id
         maps=Rolemapping.objects.get(user=user_id)
@@ -197,7 +252,7 @@ class ProductView(APIView) :
                         description=description,
                         price=price,
                         quantity=quantity,
-                        category=category.id,
+                        category=category,
                         created_by=user_id
                     )
                     product.save()
