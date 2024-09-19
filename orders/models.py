@@ -51,7 +51,7 @@ class CartItems(models.Model):
     user=models.ForeignKey(CustomUser,on_delete=models.CASCADE)
     bought_status=models.CharField(max_length=50,default='pending')
     quantity=models.PositiveIntegerField()
-    price=models.DecimalField(max_digits=10,decimal_places=4)
+    price=models.DecimalField(max_digits=10,decimal_places=2)
     created_at=models.DateTimeField(auto_now_add=True)
     created_by=models.IntegerField(blank=True,null=True)
     modified_at=models.DateTimeField(auto_now=True)
