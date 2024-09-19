@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'users',
     'orders',
     'rest_framework',
+    'simple_history',
 ]
 REST_FRAMEWORK = {
 'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -68,6 +69,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'simple_history.middleware.HistoryRequestMiddleware',
 ]
 
 ROOT_URLCONF = 'tradeconnect.urls'
