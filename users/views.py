@@ -150,7 +150,7 @@ class RegisterUserApi(APIView):
         if role_name not in ['manager', 'buyer', 'seller']:
             return Response({
                 "status": "error",
-                "message": "Role is not valid or allowed to be created."
+                "message": "Invalid role."
             }, status=status.HTTP_400_BAD_REQUEST)
 
         
@@ -167,7 +167,7 @@ class RegisterUserApi(APIView):
             if user_role_name != 'admin':
                 return Response({
                     "status": "error",
-                    "message": "Only admin can create users with the 'manager' role."
+                    "message": "Only admin can create a manager."
                 }, status=status.HTTP_403_FORBIDDEN)
 
         try:
