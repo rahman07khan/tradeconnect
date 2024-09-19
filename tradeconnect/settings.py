@@ -39,7 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'users',
     'orders',
-    'restframework',
+    'rest_framework',
 ]
 REST_FRAMEWORK = {
 'DEFAULT_AUTHENTICATION_CLASSES': (

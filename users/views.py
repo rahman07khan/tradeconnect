@@ -169,9 +169,18 @@ class RegisterUserApi(APIView):
                     "status": "error",
                     "message": "Only admin can create a manager."
                 }, status=status.HTTP_403_FORBIDDEN)
+        try:
+    
+            role = RoleMaster.objects.get(name=role_name)
+        except RoleMaster.DoesNotExist:
+            return Response({
+                "status": "error",
+                "message": "Role does not exist."
+            }, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             with transaction.atomic():
+                
                 new_user = CustomUser.objects.create(
                     first_name=first_name,
                     last_name=last_name,
@@ -179,15 +188,16 @@ class RegisterUserApi(APIView):
                     password=make_password(password),
                     mobile_number=mobile_number,
                     username=username,
-                    created_by=user.id,
-                    modified_by=user.id
-                )
-                role = RoleMaster.objects.get(name=role_name)  
+                    created_by=user.id if role_name=='manager' else 1,
+                    modified_by=user.id if role_name=='manager' else 1
+                    )
+                
+              
                 Rolemapping.objects.create(
                     user=new_user,
                     role=role,
-                    created_by=user.id,
-                    modified_by=user.id
+                    created_by=user.id if role_name=='manager' else 1,
+                    modified_by=user.id if role_name=='manager' else 1
                 )
             return Response({
                 "status": "success",
