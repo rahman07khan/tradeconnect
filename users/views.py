@@ -13,7 +13,9 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 
 # Create your views here.
+
 class RolemasterView(APIView):
+    """get role details"""
     def get(self,request):
         try:
             role=RoleMaster.objects.filter(is_active=True)
@@ -41,7 +43,7 @@ class RolemasterView(APIView):
                 "message":str(e)
             },status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
-    
+    """create role"""
     def post(self,request):
         try:   
             data=request.data
@@ -67,7 +69,7 @@ class RolemasterView(APIView):
                 "message":str(e)
                 },status=status.HTTP_400_BAD_REQUEST)
             
-    
+    """update role"""
     def put(self,request):
         try:
             data=request.data
@@ -95,7 +97,7 @@ class RolemasterView(APIView):
                 "status":"failed",
                 "message":str(e)
             },status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-            
+    """delete role"""       
     def delete(self,request):
         try:
             data=request.data
@@ -129,6 +131,7 @@ class RolemasterView(APIView):
 
 #register
 class RegisterUserApi(APIView):
+    """create user"""
     def post(self,request):
         user=request.user
         data=request.data
@@ -146,14 +149,14 @@ class RegisterUserApi(APIView):
                 "status":"error",
                 "message":"email or mobile_number is already exists."
             },status=status.HTTP_400_BAD_REQUEST)
-        
+        #check role_name
         if role_name not in ['manager', 'buyer', 'seller']:
             return Response({
                 "status": "error",
                 "message": "Invalid role."
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        
+        #check if role_name is manager
         if role_name == 'manager':
             try:
                 user_mapping = Rolemapping.objects.get(user=user)
@@ -163,21 +166,22 @@ class RegisterUserApi(APIView):
                     "status": "error",
                     "message": "User does not have a role assignment."
                 }, status=status.HTTP_403_FORBIDDEN)
-
+            #check admin permission
             if user_role_name != 'admin':
                 return Response({
                     "status": "error",
                     "message": "Only admin can create a manager."
                 }, status=status.HTTP_403_FORBIDDEN)
+        #check role_name in role table
         try:
-    
+
             role = RoleMaster.objects.get(name=role_name)
         except RoleMaster.DoesNotExist:
             return Response({
                 "status": "error",
                 "message": "Role does not exist."
             }, status=status.HTTP_400_BAD_REQUEST)
-
+        #create the user
         try:
             with transaction.atomic():
                 
@@ -192,7 +196,7 @@ class RegisterUserApi(APIView):
                     modified_by=user.id if role_name=='manager' else 1
                     )
                 
-              
+              #map the user with their role
                 Rolemapping.objects.create(
                     user=new_user,
                     role=role,
@@ -209,19 +213,23 @@ class RegisterUserApi(APIView):
                 "message": str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
 class LoginUserApi(APIView):
+    #login user
     def post(self,request):
         data=request.data
         mobile_number=data.get('mobile_number')
         password=data.get('password')
+        #check mobile_number and password is given
         if not mobile_number or not  password:
             return Response({
                 "status":"error",
                 "message":"mobile_number and password is required to give"
             },status=status.HTTP_400_BAD_REQUEST)
+        #check mobile_number and password
         try:
             with transaction.atomic():
                 user=CustomUser.objects.get(mobile_number=mobile_number)
                 if check_password(password,user.password):
+                    #create token
                     token=RefreshToken.for_user(user)
                     access_token=str(token.access_token)
                     return Response({

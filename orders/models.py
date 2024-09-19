@@ -1,7 +1,8 @@
 from django.db import models
 from users.models import CustomUser
-
+from simple_history.models import HistoricalRecords
 # Create your models here.
+"""category table"""
 class CategoryMaster(models.Model):
     name=models.CharField(max_length=50)
     description=models.CharField(max_length=50,blank=True,null=True)
@@ -11,7 +12,7 @@ class CategoryMaster(models.Model):
     modified_at=models.DateTimeField(auto_now_add=True)
     modified_by=models.IntegerField(blank=True,null=True)
     
-    
+"""product table"""   
 class ProductMaster(models.Model):
     name=models.CharField(max_length=30)
     description=models.CharField(max_length=50,blank=True,null=True)
@@ -24,10 +25,12 @@ class ProductMaster(models.Model):
     modified_at=models.DateTimeField(auto_now_add=True)
     modified_by=models.IntegerField(blank=True,null=True)
     
+""" buy product"""
 class BuyProduct(models.Model):
     category=models.ForeignKey(CategoryMaster,on_delete=models.CASCADE)
     product=models.ForeignKey(ProductMaster,on_delete=models.CASCADE)
     user = models.ForeignKey(CustomUser,on_delete=models.CASCADE)
+    cart_id=models.CharField(max_length=15,null=True)
     quantity=models.PositiveIntegerField()
     total=models.DecimalField(max_digits=10, decimal_places=2)
     is_active=models.BooleanField(default=True)
@@ -35,4 +38,20 @@ class BuyProduct(models.Model):
     created_by=models.IntegerField(blank=True,null=True)
     modified_at=models.DateTimeField(auto_now_add=True)
     modified_by=models.IntegerField(blank=True,null=True)
-    
+
+""""cart table"""
+class CartItems(models.Model):
+    category=models.ForeignKey(CategoryMaster,on_delete=models.CASCADE)
+    product=models.ForeignKey(ProductMaster,on_delete=models.CASCADE)
+    user=models.ForeignKey(CustomUser,on_delete=models.CASCADE)
+    bought_status=models.CharField(max_length=50,default='pending')
+    quantity=models.PositiveIntegerField()
+    total_price=models.DecimalField(max_digits=10,decimal_places=4)
+    created_at=models.DateTimeField(auto_now_add=True)
+    created_by=models.IntegerField(blank=True,null=True)
+    modified_at=models.DateTimeField(auto_now=True)
+    modified_by=models.IntegerField(blank=True,null=True)
+    is_active=models.BooleanField(default=True)
+    history = HistoricalRecords()
+
+
