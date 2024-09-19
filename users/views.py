@@ -102,12 +102,12 @@ class RolemasterView(APIView):
             role_id=request.data.get("role_id")
             
             with transaction.atomic():
-                roles=RoleMaster.objects.get(id=role_id)
-                if not roles.is_active:
-                    return Response({
-                        "status":"error",
-                        "message":"only roles with active is allow to update"    
-                    })
+                roles=RoleMaster.objects.get(id=role_id,is_active=True)
+                # if not roles.is_active:
+                #     return Response({
+                #         "status":"error",
+                #         "message":"only roles with active is allow to update"    
+                #     })
                 roles.is_active=False
                 roles.save()
                 return Response({
@@ -117,13 +117,13 @@ class RolemasterView(APIView):
         except RoleMaster.DoesNotExist:
             return Response({
                 "staus":"error",
-                "message":"role not found"
+                "message":"role not found or role is not active"
             },status=status.HTTP_400_BAD_REQUEST)           
         except Exception as e:
             return Response({
                 "status":"failed",
                 "message":str(e)
-            },status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
+            },status=status.HTTP_400_BAD_REQUEST) 
 
 
 
