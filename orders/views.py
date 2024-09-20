@@ -560,3 +560,54 @@ class CartItemUserApi(APIView):
                 "message": str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
 
+
+            
+            
+class GetProductBySeller(APIView):
+    def get(self,request):
+        try:
+            users=request.user
+            maps=Rolemapping.objects.get(user=users)
+            if maps.role.name=='seller':
+                product=ProductMaster.objects.filter(is_active=True,created_by=users.id)  
+                data=[]
+                for products in product:   
+                        data.append(
+                            { 
+                            'product_id': products.id,
+                            'product_name': products.name,
+                            'description': products.description,
+                            'price': products.price,
+                            'quantity': products.quantity,
+                            "craeted_at":products.created_at
+                        })
+                return Response({
+                    "status":"sucess",
+                    "message":"data retrieve successfully",
+                    "data":{
+                        "seller_name":users.username,
+                        "seller_mail":users.email,
+                        "data":data
+                    }})
+            else:
+                return Response({
+                "status":"error",
+                "message":"only seller can access"
+            },status=status.HTTP_401_UNAUTHORIZED)  
+        except Rolemapping.DoesNotExist:
+            return Response({
+                "status":"error",
+                "message":"role not found"
+            },status=status.HTTP_400_BAD_REQUEST)
+        except ProductMaster.DoesNotExist:
+                return Response({
+                    "status":"error",
+                    "message":"product not found or product is not active"
+                },status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+                return Response({
+                    "status":"failed",
+                    "message":str(e)
+                },status=status.HTTP_400_BAD_REQUEST)
+
+            
