@@ -176,6 +176,7 @@ class ProductView(APIView) :
         user = request.user
         category_id = request.query_params.get('category_id')
         product_id = request.query_params.get('product_id')
+        print(f"Received category_id: {category_id}, product_id: {product_id}")
         if not category_id:
             return Response({
                 "status":"error",
@@ -190,7 +191,6 @@ class ProductView(APIView) :
                 }, status=status.HTTP_403_FORBIDDEN)
                       
             if category_id:
-
                 category = CategoryMaster.objects.get(id=category_id,is_active=True)
                 if product_id:
                     product = ProductMaster.objects.get(id=product_id, category=category,is_active=True)
@@ -208,7 +208,7 @@ class ProductView(APIView) :
                     }, status=status.HTTP_200_OK)
                 
                 else:
-                    products = ProductMaster.objects.filter(category=category,is_active=True)
+                    products = ProductMaster.objects.filter(category=category,is_active=True).order_by('-created_at')
                     data = [{
                         'product_id': product.id,
                         'product_name': product.name,
@@ -389,14 +389,13 @@ class CartItemUserApi(APIView):
         quantity=data.get('quantity')
         created_by=request.user.id
         
-
         #check category,product,quantity is given
         if not category_id or not product_id or not quantity:
            return Response({
                 "status":"error",
                 "message":"category,product,quantity is required"
             },status=status.HTTP_400_BAD_REQUEST) 
-        
+        #check role
         try:
             maps = Rolemapping.objects.get(user=user.id)
             if maps.role.name != 'buyer':
@@ -406,6 +405,7 @@ class CartItemUserApi(APIView):
                 }, status=status.HTTP_403_FORBIDDEN)
         
             product=ProductMaster.objects.get(id=product_id,is_active=True)
+            #check category_id 
             if product.category == category_id and product.is_active == True:
                 #check product quantity
                 if product.quantity<quantity:
@@ -423,8 +423,6 @@ class CartItemUserApi(APIView):
                         price=product.price,
                         created_by=created_by,
                     )
-                    product.quantity -=quantity
-                    product.save()
                     return Response({
                         "status":"success",
                         "message":"successfully product is added to cart"
@@ -447,4 +445,118 @@ class CartItemUserApi(APIView):
                     "message":str(e)
                 },status=status.HTTP_400_BAD_REQUEST
             )
+    def put(self, request):
+        user = request.user
+        data = request.data
+        cart_id = data.get('cart_id')
+        quantity = data.get('quantity')
+        modified_by = request.user.id
+
+        #check the card_id and quantity is given
+        if not cart_id or quantity is None:
+            return Response({
+                "status": "error",
+                "message": "cart_id and quantity are required"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        #if quantity is less than 1
+        if quantity <1:
+            return Response({
+                "status":"error",
+                "message":"quantity is  must to be 1 and above"
+            },status=status.HTTP_400_BAD_REQUEST)
+        #check permission
+        try:
+            maps = Rolemapping.objects.get(user=user.id)
+            if maps.role.name != 'buyer':
+                return Response({
+                    "status": "error",
+                    "message": "Only buyer can access this."
+                }, status=status.HTTP_403_FORBIDDEN)
+
+            cart = CartItems.objects.get(id=cart_id, is_active=True)
+           
+            with transaction.atomic():
+                #check the quantity, and add the product
+                if quantity >cart.quantity:
+
+                    if cart.product.quantity < quantity:#check the available of the product
+                        return Response({
+                            "status": "error",
+                            "message": f"Only {cart.product.quantity} items are available."
+                        }, status=status.HTTP_403_FORBIDDEN)
+                    cart.quantity += quantity 
+                #check the quantity and reduce the product
+                elif quantity<cart.quantity:
+                    cart.quantity -= quantity  
+
+            cart.modified_by = modified_by
+            cart.save()
+
+            return Response({
+                "status": "success",
+                "message": "Successfully updated the cart."
+            }, status=status.HTTP_200_OK)
+
+        except Rolemapping.DoesNotExist:
+            return Response({
+                "status": "error",
+                "message": "Role is not mapped to user."
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except CartItems.DoesNotExist:
+            return Response({
+                "status": "error",
+                "message": "Cart not found."
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({
+                "status": "error",
+                "message": str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+      
+    def delete(self,request):
+        user=request.user
+        data=request.data
+        cart_id=data.get('cart_id')
+        #check cart_id
+        if not cart_id:
+            return Response({
+                "status":"error",
+                'message':"cart id is required"
+            },status=status.HTTP_400_BAD_REQUEST)
+        #check permission
+        try:
+            map=Rolemapping.objects.get(id=user.id)
+            if map.role.name != 'buyer':
+                return Response({
+                    "status":"error",
+                    "message":"only buyer can access it"
+                },status=status.HTTP_400_BAD_REQUEST)
             
+            cart=CartItems.objects.get(id=cart_id,is_active=True)
+
+            with transaction.atomic():
+                #soft delete
+                cart.is_active=False
+                cart.save()
+                return Response({
+                    "status": "success",
+                    "message": "Cart is successfully set as inactive."
+                }, status=status.HTTP_200_OK)
+
+        except Rolemapping.DoesNotExist:
+            return Response({
+                "status": "error",
+                "message": "Role is not mapped to the user."
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except CartItems.DoesNotExist:
+            return Response({
+                "status": "error",
+                "message": "cart not found or already inactive."
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({
+                "status": "error",
+                "message": str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
