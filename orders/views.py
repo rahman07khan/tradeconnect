@@ -381,27 +381,29 @@ class ProductView(APIView) :
                 "message":"only admin and manager is access"
             },status=status.HTTP_401_UNAUTHORIZED) 
 class CartItemUserApi(APIView):
-    def post(self,request):
-        user=request.user
-        data=request.data
-        category_id=data.get('category')
-        product_id=data.get('product')
-        quantity=data.get('quantity')
-        created_by=request.user.id
+    def post(self, request):
+        user = request.user
+        data = request.data
+        category_id = data.get('category')
+        product_id = data.get('product')
+        quantity = data.get('quantity')
+        created_by = user.id
         
-        #check category,product,quantity is given
-        if not category_id or not product_id or not quantity:
-           return Response({
-                "status":"error",
-                "message":"category,product,quantity is required"
-            },status=status.HTTP_400_BAD_REQUEST) 
-         #if quantity is less than 1
-        if quantity <1:
+        # Check category, product, quantity is given
+        if not category_id or not product_id or quantity is None:
             return Response({
-                "status":"error",
-                "message":"quantity is  must to be 1 and above"
-            },status=status.HTTP_400_BAD_REQUEST)
-        #check role
+                "status": "error",
+                "message": "category, product, and quantity are required"
+            }, status=status.HTTP_400_BAD_REQUEST) 
+
+        # If quantity is less than 1
+        if quantity < 1:
+            return Response({
+                "status": "error",
+                "message": "quantity must be 1 and above"
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check role
         try:
             maps = Rolemapping.objects.get(user=user.id)
             if maps.role.name != 'buyer':
@@ -409,19 +411,20 @@ class CartItemUserApi(APIView):
                     "status": "error",
                     "message": "Only buyer can access this."
                 }, status=status.HTTP_403_FORBIDDEN)
-        
-            product=ProductMaster.objects.get(id=product_id,is_active=True)
-            #check category_id 
-            if product.category == category_id and product.is_active == True:
-                #check product quantity
-                if product.quantity<quantity:
+
+            product = ProductMaster.objects.get(id=product_id, is_active=True)
+
+            # Check category_id
+            if product.category.id == category_id and product.is_active:
+                # Check product quantity
+                if product.quantity < quantity:
                     return Response({
                         "status": "error",
-                        "message": f"only {product.quantity}is available."
-                    }, status=status.HTTP_403_FORBIDDEN)
-                
+                        "message": f"Only {product.quantity} is available."
+                    }, status=status.HTTP_400_BAD_REQUEST)
+
                 with transaction.atomic():
-                    items=CartItems.objects.create(
+                    items = CartItems.objects.create(
                         category=product.category,
                         product=product,
                         user=user,
@@ -429,28 +432,29 @@ class CartItemUserApi(APIView):
                         price=product.price,
                         created_by=created_by,
                     )
-                    return Response({
-                        "status":"success",
-                        "message":"successfully product is added to cart"
-                    },status=status.HTTP_201_CREATED)
+                return Response({
+                    "status": "success",
+                    "message": "Successfully added product to cart"
+                }, status=status.HTTP_201_CREATED)
+
         except Rolemapping.DoesNotExist:
             return Response({
-                "status":"error",
-                "message":"role is not map to user"
-            },status=status.HTTP_400_BAD_REQUEST)
-        
+                "status": "error",
+                "message": "Role is not mapped to user"
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         except ProductMaster.DoesNotExist:
             return Response({
-                "status":"error",
-                "message":"product is not exists"
-            },status=status.HTTP_400_BAD_REQUEST)
+                "status": "error",
+                "message": "Product does not exist"
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         except Exception as e:
-            return Response(
-                {
-                    "status":"error",
-                    "message":str(e)
-                },status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({
+                "status": "error",
+                "message": str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+    
     def put(self, request):
         user = request.user
         data = request.data
@@ -657,6 +661,7 @@ class BuyProductUserApi(APIView):
                         remaining_quantity=cart_items.quantity-quantity
                         #assign the quantity to cart_items
                         cart_items.quantity=quantity
+                        # cart_items.bought_status='completed'
                         cart_items.save()
 
                         buy=BuyProducts.objects.create(
