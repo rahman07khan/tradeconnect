@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from orders.models import CategoryMaster,ProductMaster,BuyProduct,CartItems
+from orders.models import CategoryMaster,ProductMaster,BuyProducts,CartItems
 from users.models import CustomUser,Rolemapping
 from rest_framework.views import APIView,status
 from rest_framework.response import Response
@@ -395,6 +395,12 @@ class CartItemUserApi(APIView):
                 "status":"error",
                 "message":"category,product,quantity is required"
             },status=status.HTTP_400_BAD_REQUEST) 
+         #if quantity is less than 1
+        if quantity <1:
+            return Response({
+                "status":"error",
+                "message":"quantity is  must to be 1 and above"
+            },status=status.HTTP_400_BAD_REQUEST)
         #check role
         try:
             maps = Rolemapping.objects.get(user=user.id)
@@ -609,5 +615,90 @@ class GetProductBySeller(APIView):
                     "status":"failed",
                     "message":str(e)
                 },status=status.HTTP_400_BAD_REQUEST)
-
+        
+""""buying the product """
+class BuyProductUserApi(APIView):
+    def post(self,request):
+        user=request.user
+        data=request.data
+        quantity=data.get('quantity')
+        cart_id=data.get('cart_id')
+        #role check
+        try:
+            maps=Rolemapping.objects.get(id=user.id)
+            if maps.role.name != 'buyer':
+                return Response({
+                    "status":"error",
+                    "message":"only buyer can access it"
+                },status=status.HTTP_400_BAD_REQUEST)
             
+             #if quantity is less than 1
+            if quantity <1:
+                return Response({
+                    "status":"error",
+                    "message":"quantity is  must to be 1 and above"
+                },status=status.HTTP_400_BAD_REQUEST)
+            
+            created_by=request.user.id
+
+            #the product in cart
+            if cart_id:
+                try:
+                    with transaction.atomic():
+
+                        cart_items=CartItems.objects.get(id=cart_id,is_active=True,user=user)
+
+                        if quantity > cart_items.quantity:
+                            return Response({
+                                "status":"error",
+                                "message":f"only{cart_items.quantity}is available in the cart"
+                            },status=status.HTTP_400_BAD_REQUEST)
+                        
+                        remaining_quantity=cart_items.quantity-quantity
+                        #assign the quantity to cart_items
+                        cart_items.quantity=quantity
+                        cart_items.save()
+
+                        buy=BuyProducts.objects.create(
+                            user=user,
+                            category=cart_items.category,
+                            product=cart_items.product,
+                            quantity=quantity,
+                            price=quantity * cart_items.price,
+                            cart_id=cart_id,
+                            created_by=created_by
+                        )
+                        #add the remaining product to productmaster
+                        if remaining_quantity>0:
+                            cart_items.product.quantity +=remaining_quantity
+                            cart_items.product.save()
+                            
+                        return Response({
+                            "status":"success",
+                            "message":"Successfully bought the product"
+                        },status=status.HTTP_201_CREATED)
+                except CartItems.DoesNotExist:
+                    return Response({
+                "status":"error",
+                "message":"role is not map to user"
+            },status=status.HTTP_400_BAD_REQUEST)   
+        except Rolemapping.DoesNotExist:
+            return Response({
+                "status":"error",
+                "message":"role is not map to user"
+            },status=status.HTTP_400_BAD_REQUEST)
+        
+        except ProductMaster.DoesNotExist:
+            return Response({
+                "status":"error",
+                "message":"product is not exists"
+            },status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response(
+                {
+                    "status":"error",
+                    "message":str(e)
+                },status=status.HTTP_400_BAD_REQUEST
+            )
+        
+    

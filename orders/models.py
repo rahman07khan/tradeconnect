@@ -29,19 +29,19 @@ class ProductMaster(models.Model):
     history = HistoricalRecords()
 
 """ buy product"""
-class BuyProduct(models.Model):
-    category=models.ForeignKey(CategoryMaster,on_delete=models.CASCADE)
-    product=models.ForeignKey(ProductMaster,on_delete=models.CASCADE)
-    user = models.ForeignKey(CustomUser,on_delete=models.CASCADE)
-    cart_id=models.CharField(max_length=15,null=True)
-    quantity=models.PositiveIntegerField()
-    price=models.DecimalField(max_digits=10, decimal_places=2)
-    is_active=models.BooleanField(default=True)
-    created_at=models.DateTimeField(auto_now_add=True)
-    created_by=models.IntegerField(blank=True,null=True)
-    modified_at=models.DateTimeField(auto_now_add=True)
-    modified_by=models.IntegerField(blank=True,null=True)
-    history = HistoricalRecords()
+# class BuyProduct(models.Model):
+#     category=models.ForeignKey(CategoryMaster,on_delete=models.CASCADE)
+#     product=models.ForeignKey(ProductMaster,on_delete=models.CASCADE)
+#     user = models.ForeignKey(CustomUser,on_delete=models.CASCADE)
+#     cart_id=models.CharField(max_length=15,null=True)
+#     quantity=models.PositiveIntegerField()
+#     price=models.DecimalField(max_digits=10, decimal_places=2)
+#     is_active=models.BooleanField(default=True)
+#     created_at=models.DateTimeField(auto_now_add=True)
+#     created_by=models.IntegerField(blank=True,null=True)
+#     modified_at=models.DateTimeField(auto_now_add=True)
+#     modified_by=models.IntegerField(blank=True,null=True)
+#     history = HistoricalRecords()
 
 
 """"cart table"""
@@ -60,3 +60,16 @@ class CartItems(models.Model):
     history = HistoricalRecords()
 
 
+class BuyProducts(models.Model):
+    category=models.ForeignKey(CategoryMaster,on_delete=models.CASCADE)
+    product=models.ForeignKey(ProductMaster,on_delete=models.CASCADE)
+    user = models.ForeignKey(CustomUser,on_delete=models.CASCADE)
+    cart_id=models.CharField(max_length=15,null=True)
+    quantity=models.PositiveIntegerField()
+    price=models.DecimalField(max_digits=10, decimal_places=2)
+    is_active=models.BooleanField(default=True)
+    created_at=models.DateTimeField(auto_now_add=True)
+    created_by=models.IntegerField(blank=True,null=True)
+    modified_at=models.DateTimeField(auto_now_add=True)
+    modified_by=models.IntegerField(blank=True,null=True)
+    history = HistoricalRecords()
