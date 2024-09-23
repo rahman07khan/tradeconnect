@@ -381,13 +381,60 @@ class ProductView(APIView) :
                 "message":"only admin and manager is access"
             },status=status.HTTP_401_UNAUTHORIZED) 
 class CartItemUserApi(APIView):
-    def post(self, request):
-        user = request.user
-        data = request.data
-        category_id = data.get('category')
-        product_id = data.get('product')
-        quantity = data.get('quantity')
-        created_by = user.id
+    def get(self,request):
+        user=request.user
+        maps=Rolemapping.objects.get(user=user)
+        try:
+            if maps.role.name=='buyer':
+                cart=CartItems.objects.filter(user=user.id,is_active=True,bought_status="pending")
+                data=[]
+                for carts in cart:
+                    data.append({ 
+                        "product_id":carts.product.id,
+                        "product_name":carts.product.name,
+                        "quantity":carts.quantity,
+                        "price":carts.price,
+                        "total_cost":carts.quantity*carts.price,
+                        "category":carts.category.name,
+                })
+                return Response({
+                    "status":"success",
+                    "message":"data retrieve successfully",
+                    "data":data
+                    },status=status.HTTP_200_OK)  
+            else:
+                return Response({
+                    "status":"error",
+                    "message":"only buyer can access",
+                    },status=status.HTTP_403_FORBIDDEN)
+        except Rolemapping.DoesNotExist:
+            return Response({
+                "status":"error",
+                "message":"role is not map to user"
+            },status=status.HTTP_400_BAD_REQUEST)
+        
+        except CartItems.DoesNotExist:
+            return Response({
+                "status":"error",
+                "message":"cart is not exists"
+            },status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response(
+                {
+                    "status":"error",
+                    "message":str(e)
+                },status=status.HTTP_400_BAD_REQUEST
+            )
+
+
+    def post(self,request):
+        user=request.user
+        data=request.data
+        category_id=data.get('category')
+        product_id=data.get('product')
+        quantity=data.get('quantity')
+        created_by=request.user.id
+    
         
         # Check category, product, quantity is given
         if not category_id or not product_id or quantity is None:
@@ -577,28 +624,134 @@ class GetProductBySeller(APIView):
     def get(self,request):
         try:
             users=request.user
-            maps=Rolemapping.objects.get(user=users)
+           
+            sold=request.query_params.get("sold","all")
+            maps=Rolemapping.objects.get(user=users.id)
+            
             if maps.role.name=='seller':
-                product=ProductMaster.objects.filter(is_active=True,created_by=users.id)  
+                product=ProductMaster.objects.filter(is_active=True,created_by=users.id)
                 data=[]
-                for products in product:   
-                        data.append(
-                            { 
-                            'product_id': products.id,
-                            'product_name': products.name,
-                            'description': products.description,
-                            'price': products.price,
-                            'quantity': products.quantity,
-                            "craeted_at":products.created_at
-                        })
-                return Response({
-                    "status":"sucess",
-                    "message":"data retrieve successfully",
-                    "data":{
-                        "seller_name":users.username,
-                        "seller_mail":users.email,
-                        "data":data
-                    }})
+                if sold == 'all':
+                    for products in product:
+                        bought_products = BuyProducts.objects.filter(is_active=True, product=products.id)
+                    
+                        sold_quantity = "unsold"
+                        
+                        if bought_products:
+                            for bought in bought_products:
+                                sold_quantity = bought.quantity  
+                                
+                                data.append({
+                                    "buyer_details": {
+                                        "buyer_id": bought.user.id,
+                                        "buyername": bought.user.username
+                                    },
+                                    'product_id': products.id,
+                                    'product_name': products.name,
+                                    'description': products.description,
+                                    'price': products.price,
+                                    'available_quantity': products.quantity,
+                                    "category": products.category.name,
+                                    "issold": True
+                                })
+
+                        else:
+                            data.append({
+                                "buyer_details": {},
+                                'product_id': products.id,
+                                'product_name': products.name,
+                                'description': products.description,
+                                'price': products.price,
+                                'available_quantity': products.quantity,
+                                "category": products.category.name,
+                                "issold": False
+                            })
+
+                    return Response({
+                        "status": "success",
+                        "message": "Data retrieved successfully",
+                        "data": {
+                            "seller_name": users.username,
+                            "seller_mail": users.email,
+                            "data": data
+                        }
+                    })
+                elif sold=='yes':
+                    try:
+                        for products in product: 
+                            boughts=BuyProducts.objects.filter(is_active=True,product=products.id)   
+                            for bought in boughts:
+                                data.append(
+                                    {
+                                    "buyer details":{
+                                        "buyer_id":bought.user.id,
+                                        "buyername":bought.user.username
+                                    }, 
+                                    'product_id': bought.product.id,
+                                    'product_name': bought.product.name,
+                                    'description': bought.product.description,
+                                    'price': bought.product.price,
+                                    "category":bought.product.category.name,                                    
+                                    'available_quantity': bought.product.quantity,
+                                    "sold_quantity":bought.quantity,
+                                    "issold":True
+                                    })
+                        return Response({
+                            "status":"sucess",
+                            "message":"data retrieve successfully",
+                            "data":{
+                                "seller_name":users.username,
+                                "seller_mail":users.email,
+                                "data":data
+                            }})
+                    except BuyProducts.DoesNotExist:
+                        return Response({
+                            "status":"error",
+                            "message":"buy product does not exists"
+                        },status=status.HTTP_400_BAD_REQUEST)
+                    except Exception as e:
+                        return Response({
+                            "status":"failed",
+                            "message":str(e)
+                        },status=status.HTTP_400_BAD_REQUEST)
+
+                    
+                elif sold=='no':
+                    try:
+                        for products in product:
+                            bought_products = BuyProducts.objects.filter(is_active=True, product=products.id)
+                                            
+                            if bought_products:
+                                continue
+                            else:
+                                data.append(
+                                    { 
+                                    'product_id': products.id,
+                                    'product_name': products.name,
+                                    'description': products.description,
+                                    'price': products.price,
+                                    'available_quantity': products.quantity,
+                                    "category":products.category.name,
+                                    "issold":False
+                                    })
+                        return Response({
+                            "status":"sucess",
+                            "message":"data retrieve successfully",
+                            "data":{
+                                "seller_name":users.username,
+                                "seller_mail":users.email,
+                                "data":data
+                            }})
+                    except Exception as e:
+                        return Response({
+                            "status":"failed",
+                            "message":str(e)
+                        },status=status.HTTP_400_BAD_REQUEST)
+                else:
+                    return Response({
+                "status":"error",
+                "message":"enter correct params"
+            },status=status.HTTP_400_BAD_REQUEST)  
             else:
                 return Response({
                 "status":"error",
@@ -619,6 +772,8 @@ class GetProductBySeller(APIView):
                     "status":"failed",
                     "message":str(e)
                 },status=status.HTTP_400_BAD_REQUEST)
+
+
         
 """"buying the product """
 class BuyProductUserApi(APIView):
