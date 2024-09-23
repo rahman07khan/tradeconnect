@@ -381,6 +381,52 @@ class ProductView(APIView) :
                 "message":"only admin and manager is access"
             },status=status.HTTP_401_UNAUTHORIZED) 
 class CartItemUserApi(APIView):
+    def get(self,request):
+        user=request.user
+        maps=Rolemapping.objects.get(user=user)
+        try:
+            if maps.role.name=='buyer':
+                cart=CartItems.objects.filter(user=user.id,is_active=True,bought_status="pending")
+                data=[]
+                for carts in cart:
+                    data.append({ 
+                        "product_id":carts.product.id,
+                        "product_name":carts.product.name,
+                        "quantity":carts.quantity,
+                        "price":carts.price,
+                        "total_cost":carts.quantity*carts.price,
+                        "category":carts.category.name,
+                })
+                return Response({
+                    "status":"success",
+                    "message":"data retrieve successfully",
+                    "data":data
+                    },status=status.HTTP_200_OK)  
+            else:
+                return Response({
+                    "status":"error",
+                    "message":"only buyer can access",
+                    },status=status.HTTP_403_FORBIDDEN)
+        except Rolemapping.DoesNotExist:
+            return Response({
+                "status":"error",
+                "message":"role is not map to user"
+            },status=status.HTTP_400_BAD_REQUEST)
+        
+        except CartItems.DoesNotExist:
+            return Response({
+                "status":"error",
+                "message":"cart is not exists"
+            },status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response(
+                {
+                    "status":"error",
+                    "message":str(e)
+                },status=status.HTTP_400_BAD_REQUEST
+            )
+
+
     def post(self,request):
         user=request.user
         data=request.data
