@@ -1,6 +1,8 @@
 from django.db import models
 from users.models import CustomUser
 from simple_history.models import HistoricalRecords
+from django.contrib.postgres.fields import ArrayField
+ 
 # Create your models here.
 """category table"""
 class CategoryMaster(models.Model):
@@ -21,6 +23,7 @@ class ProductMaster(models.Model):
     price=models.DecimalField(max_digits=10, decimal_places=2)
     quantity=models.PositiveIntegerField()
     category=models.ForeignKey(CategoryMaster, on_delete=models.CASCADE)
+    images=ArrayField(models.TextField(),null=True,blank=True)
     is_active=models.BooleanField(default=True)
     created_at=models.DateTimeField(auto_now_add=True)
     created_by=models.IntegerField(blank=True,null=True)
@@ -67,6 +70,7 @@ class BuyProducts(models.Model):
     cart_id=models.CharField(max_length=15,null=True)
     quantity=models.PositiveIntegerField()
     price=models.DecimalField(max_digits=10, decimal_places=2)
+    images=ArrayField(models.TextField(),null=True,blank=True)
     is_active=models.BooleanField(default=True)
     created_at=models.DateTimeField(auto_now_add=True)
     created_by=models.IntegerField(blank=True,null=True)
