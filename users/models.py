@@ -1,6 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
-
+from django.contrib.postgres.fields import ArrayField
 
 # Create your models here.
 class CustomUser(AbstractUser):
@@ -15,6 +15,7 @@ class CustomUser(AbstractUser):
     created_by=models.IntegerField(blank=True,null=True)
     modified_at=models.DateTimeField(auto_now_add=True)
     modified_by=models.IntegerField(blank=True,null=True)
+    last_login_role=models.CharField(max_length=50,blank=True,null=True)
     
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = []
@@ -33,7 +34,7 @@ class RoleMaster(models.Model):
     
 class Rolemapping(models.Model):
     user=models.ForeignKey(CustomUser,on_delete=models.CASCADE)
-    role=models.ForeignKey(RoleMaster,on_delete=models.CASCADE)
+    roles=ArrayField(models.IntegerField(),blank=True,null=True)
     is_active=models.BooleanField(default=True)
     created_at=models.DateTimeField(auto_now_add=True)
     created_by=models.IntegerField(blank=True,null=True)
