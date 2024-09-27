@@ -1,9 +1,47 @@
 from django.shortcuts import render
 from orders.models import CategoryMaster,ProductMaster,BuyProducts,CartItems
-from users.models import CustomUser,Rolemapping
+from users.models import CustomUser, RoleMaster,Rolemapping
 from rest_framework.views import APIView,status
 from rest_framework.response import Response
 from django.db import transaction
+from django.conf import settings
+import boto3
+from django.utils import timezone
+from botocore.config import Config
+
+def upload_image_s3( image_file, file_name):
+    try:
+        s3_client = boto3.client(
+            's3',
+            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+            region_name=settings.AWS_S3_REGION_NAME,
+            config=Config(signature_version='s3v4')
+ 
+        )
+       
+        # Add timestamp to file name for uniqueness
+        current_time=timezone.now().strftime('%Y-%m-%d %H:%M')
+        
+        timestamps = current_time
+        file_extension = file_name.split('.')[-1]
+        unique_filename = f"{file_name.split('.')[0]}_{timestamps}.{file_extension}"
+        s3_client.upload_fileobj(
+            image_file,
+            settings.AWS_STORAGE_BUCKET_NAME,
+            f"product_images/{unique_filename}",
+            ExtraArgs={'ACL': 'public-read', 'ServerSideEncryption': 'AES256'}
+ 
+
+        )
+        # Generate the image URL
+        image_url = f"https://{settings.AWS_S3_CUSTOM_DOMAIN}/product_images/{unique_filename}"
+        return image_url
+    except Exception as e:
+              return Response({
+                    "status":"failed",
+                    "message":str(e)
+                },status=status.HTTP_400_BAD_REQUEST)
 
 #CategoryMaster CRUD
 class CategoryView(APIView):
@@ -251,22 +289,33 @@ class ProductView(APIView) :
                 price=data.get("price")
                 quantity=data.get("quantity")
                 category_id=data.get("category")
+                image = request.FILES.getlist('images')
                 category=CategoryMaster.objects.get(id=category_id,is_active=True)
-                
-                with transaction.atomic():
-                    product=ProductMaster(
-                        name=name,
-                        description=description,
-                        price=price,
-                        quantity=quantity,
-                        category=category,
-                        created_by=user_id
-                    )
-                    product.save()
+                if image:
+                    image_urls= []
+                    for image_file in image:
+                        file_name = image_file.name
+                        image_url = upload_image_s3(image_file, file_name)
+                        if image_url: 
+                            image_urls.append(image_url)
+                    with transaction.atomic():
+                        product=ProductMaster(
+                            name=name,
+                            description=description,
+                            price=price,
+                            quantity=quantity,
+                            category=category,
+                            images=image_urls,
+                            created_by=user_id
+                        )
+                        # product.save()
                     return Response({
                         "status":"success",
-                        "message":"product created successfully"
+                        "message":"product created successfully",
+                        "image_url": image_urls  
+
                     },status=status.HTTP_201_CREATED)
+                
             except CategoryMaster.DoesNotExist:
                 return Response({
                 "status":"error",
@@ -777,6 +826,11 @@ class GetProductBySeller(APIView):
         
 """"buying the product """
 class BuyProductUserApi(APIView):
+    def get(self,request):
+        user_role=request.user.last_login_role
+        role=RoleMaster.objects.get(id=int(user_role))
+        print(role.name)
+    
     def post(self,request):
         user=request.user
         data=request.data

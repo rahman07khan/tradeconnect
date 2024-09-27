@@ -327,3 +327,60 @@ class LoginUserApi(APIView):
                         "status":"error",
                         "message":str(e)
                     },status=status.HTTP_400_BAD_REQUEST)
+
+class RoleLogin(APIView):
+    def post(self,request):
+        try:
+            users=request.user
+            role_type=request.data.get('role_type')
+            with transaction.atomic():
+                user=CustomUser.objects.get(id=users.id)
+                rolemap=Rolemapping.objects.get(user=user.id)
+                print(rolemap.roles)
+                print(role_type)
+                if role_type in rolemap.roles:
+                    user.last_login_role=str(role_type)
+                    user.save()
+                    token=RefreshToken.for_user(user)
+                    access_token=str(token.access_token)
+                    return Response({
+                        'status':"success",
+                        "message":"login successfull",
+                        "data":access_token
+                    },status=status.HTTP_200_OK)
+                # for rolese in rolemap.roles:
+                #     role=RoleMaster.objects.get(id=rolese)
+                #     # print(role_type)
+                #     if rolese==role_type:
+                            
+                #             token=RefreshToken.for_user(user)
+                #             access_token=str(token.access_token)
+                #             return Response({
+                #                 'status':"success",
+                #                 "message":"login successfull",
+                #                 "data":access_token
+                #             },status=status.HTTP_200_OK)
+                return Response({
+                        "status":"error",
+                        "message":"roles not found"
+                    },status=status.HTTP_400_BAD_REQUEST)
+        except CustomUser.DoesNotExist:
+            return Response({
+                "status": "error",
+                "message": "user does not exist."
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except RoleMaster.DoesNotExist:
+            return Response({
+                "status": "error",
+                "message": "Role does not exist."
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except Rolemapping.DoesNotExist:
+            return Response({
+                "status": "error",
+                "message": "Rolemap does not exist."
+            }, status=status.HTTP_400_BAD_REQUEST)               
+        except Exception as e:
+             return Response({
+                        "status":"error",
+                        "message":str(e)
+                    },status=status.HTTP_400_BAD_REQUEST)
