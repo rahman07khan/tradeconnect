@@ -221,7 +221,7 @@ class RegisterUserApi(APIView):
         password=data.get('password')
         mobile_number=data.get('mobile_number')
         username=first_name+" "+last_name
-        role_name=data.get('role')
+        role_name=data.get('roles',[])
         
         #check email and mobile number it is already exits
         if CustomUser.objects.filter(email=email) or CustomUser.objects.filter(mobile_number=mobile_number):
@@ -229,39 +229,45 @@ class RegisterUserApi(APIView):
                 "status":"error",
                 "message":"email or mobile_number is already exists."
             },status=status.HTTP_400_BAD_REQUEST)
+        
         #check role_name
-        if role_name not in ['manager', 'buyer', 'seller']:
-            return Response({
-                "status": "error",
-                "message": "Invalid role."
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-        #check if role_name is manager
-        if role_name == 'manager':
-            try:
-                user_mapping = Rolemapping.objects.get(user=user)
-                user_role_name = user_mapping.role.name
-            except Rolemapping.DoesNotExist:
+        for role in role_name:
+            if role not in ['manager', 'buyer', 'seller']:
                 return Response({
                     "status": "error",
-                    "message": "User does not have a role assignment."
-                }, status=status.HTTP_403_FORBIDDEN)
-            #check admin permission
-            if user_role_name != 'admin':
-                return Response({
-                    "status": "error",
-                    "message": "Only admin can create a manager."
-                }, status=status.HTTP_403_FORBIDDEN)
-        #check role_name in role table
-        try:
+                    "message": "Invalid role."
+                }, status=status.HTTP_400_BAD_REQUEST)
 
-            role = RoleMaster.objects.get(name=role_name)
-        except RoleMaster.DoesNotExist:
+
+            #check if role_name is manager
+            if role == 'manager':
+                #print(role)
+                try:
+                    user_mapping = Rolemapping.objects.get(user=user)
+                    role_ids=user_mapping.roles
+                    roles=RoleMaster.objects.filter(id__in=role_ids)
+                    role_names=[role.name for role in roles]
+                    if 'admin'not in role_names:
+
+                        return Response({
+                            "status": "error",
+                            "message": "Only admin can create a manager."
+                        }, status=status.HTTP_403_FORBIDDEN)
+                except Rolemapping.DoesNotExist:
+                    return Response({
+                        "status": "error",
+                        "message": "User does not have a role assignment."
+                    }, status=status.HTTP_403_FORBIDDEN)
+                
+        #gather the role_id     
+        role_id = [role.id for role in RoleMaster.objects.filter(name__in=role_name)]
+        if not role_id:
             return Response({
-                "status": "error",
-                "message": "Role does not exist."
-            }, status=status.HTTP_400_BAD_REQUEST)
-        #create the user
+                "status":"error",
+                "message":"role is not exists"
+            },status=status.HTTP_400_BAD_REQUEST)
+      
+       
         try:
             with transaction.atomic():
                 
@@ -272,16 +278,14 @@ class RegisterUserApi(APIView):
                     password=make_password(password),
                     mobile_number=mobile_number,
                     username=username,
-                    created_by=user.id if role_name=='manager' else 1,
-                    modified_by=user.id if role_name=='manager' else 1
+                    created_by=user.id if user  else 1
                     )
-                
+     
               #map the user with their role
                 Rolemapping.objects.create(
                     user=new_user,
-                    role=role,
-                    created_by=user.id if role_name=='manager' else 1,
-                    modified_by=user.id if role_name=='manager' else 1
+                    roles=role_id,
+                    created_by=user.id if user else 1
                 )
             return Response({
                 "status": "success",
@@ -291,7 +295,8 @@ class RegisterUserApi(APIView):
             return Response({
                 "status": "error",
                 "message": str(e)
-            }, status=status.HTTP_400_BAD_REQUEST)
+            }, status=status.HTTP_400_BAD_REQUEST)        
+
 class LoginUserApi(APIView):
     #login user
     def post(self,request):
