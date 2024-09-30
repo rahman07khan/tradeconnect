@@ -15,7 +15,8 @@ class CustomUser(AbstractUser):
     created_by=models.IntegerField(blank=True,null=True)
     modified_at=models.DateTimeField(auto_now_add=True)
     modified_by=models.IntegerField(blank=True,null=True)
-    last_login_role=models.CharField(max_length=50,blank=True,null=True)
+    last_login_role_id=models.IntegerField(blank=True,null=True)
+    is_approval=models.BooleanField(default=False)
     
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = []
@@ -34,7 +35,7 @@ class RoleMaster(models.Model):
     
 class Rolemapping(models.Model):
     user=models.ForeignKey(CustomUser,on_delete=models.CASCADE)
-    roles=ArrayField(models.IntegerField(),blank=True,null=True)
+    roles=models.ManyToManyField(RoleMaster)
     is_active=models.BooleanField(default=True)
     created_at=models.DateTimeField(auto_now_add=True)
     created_by=models.IntegerField(blank=True,null=True)
