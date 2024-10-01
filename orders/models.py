@@ -97,6 +97,7 @@ class Likes(models.Model):
 
 class feedbackmaster(models.Model):
     feedback_type = models.CharField(max_length=50)
+    is_report = models.BooleanField(default=False)
     description = models.TextField(blank=True, null=True)
     created_at=models.DateTimeField(auto_now_add=True)
     created_by=models.IntegerField(blank=True,null=True)
@@ -113,7 +114,6 @@ class Feedback(models.Model):
     product = models.ForeignKey(ProductMaster, related_name='feedbacks', on_delete=models.CASCADE)
     user = models.ForeignKey(CustomUser,related_name='feedbacks', on_delete=models.CASCADE)
     feedback_master = models.ForeignKey(feedbackmaster, on_delete=models.SET_NULL, null=True, blank=True)  
-    is_report = models.BooleanField(default=False)
     content = models.TextField() 
     created_at=models.DateTimeField(auto_now_add=True)
     created_by=models.IntegerField(blank=True,null=True)
