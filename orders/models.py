@@ -77,3 +77,84 @@ class BuyProducts(models.Model):
     modified_at=models.DateTimeField(auto_now_add=True)
     modified_by=models.IntegerField(blank=True,null=True)
     history = HistoricalRecords()
+
+class Likes(models.Model):
+    product = models.ForeignKey(ProductMaster,related_name='likes',on_delete = models.CASCADE , db_index = True)
+    user = models.ForeignKey(CustomUser,related_name='likes',on_delete=models.CASCADE)
+    created_at=models.DateTimeField(auto_now_add=True)
+    created_by=models.IntegerField(blank=True,null=True)
+    modified_at=models.DateTimeField(auto_now_add=True)
+    modified_by=models.IntegerField(blank=True,null=True)
+    is_active=models.BooleanField(default=True)
+    history = HistoricalRecords()
+
+    class Meta:
+        db_table = 'likes'
+        indexes = [ models.Index(fields=['product'])]
+        indexes = [ models.Index(fields=['user']) ]
+        ordering = ['-created_at']
+
+
+class feedbackmaster(models.Model):
+    feedback_type = models.CharField(max_length=50)
+    description = models.TextField(blank=True, null=True)
+    created_at=models.DateTimeField(auto_now_add=True)
+    created_by=models.IntegerField(blank=True,null=True)
+    modified_at=models.DateTimeField(auto_now_add=True)
+    modified_by=models.IntegerField(blank=True,null=True)
+    is_active=models.BooleanField(default=True)
+    history = HistoricalRecords()
+
+    class Meta:
+        db_table = 'feedbackmaster'
+        ordering = ['-created_at']
+
+class Feedback(models.Model):
+    product = models.ForeignKey(ProductMaster, related_name='feedbacks', on_delete=models.CASCADE)
+    user = models.ForeignKey(CustomUser,related_name='feedbacks', on_delete=models.CASCADE)
+    feedback_master = models.ForeignKey(feedbackmaster, on_delete=models.SET_NULL, null=True, blank=True)  
+    content = models.TextField() 
+    created_at=models.DateTimeField(auto_now_add=True)
+    created_by=models.IntegerField(blank=True,null=True)
+    modified_at=models.DateTimeField(auto_now_add=True)
+    modified_by=models.IntegerField(blank=True,null=True)
+    is_active=models.BooleanField(default=True)
+    history = HistoricalRecords()
+
+    class Meta:
+        db_table = 'feedback'
+        ordering = ['-created_at']
+
+class Comment(models.Model):
+    product = models.ForeignKey(ProductMaster, related_name='comments', on_delete=models.CASCADE , db_index = True)
+    user = models.ForeignKey(CustomUser,related_name='comments', on_delete=models.CASCADE)
+    first_comment = models.ForeignKey('self', null=True, blank=True, related_name='replies', on_delete=models.CASCADE) 
+    content = models.TextField()
+    created_at=models.DateTimeField(auto_now_add=True)
+    created_by=models.IntegerField(blank=True,null=True)
+    modified_at=models.DateTimeField(auto_now_add=True)
+    modified_by=models.IntegerField(blank=True,null=True)
+    is_active=models.BooleanField(default=True)
+    history = HistoricalRecords()
+
+    class Meta:
+        db_table = 'comment'
+        indexes = [ models.Index(fields=['product']) ]
+        indexes = [ models.Index(fields=['user']) ]
+        indexes = [models.Index(fields=['first_comment'])]
+        ordering = ['-created_at']
+
+class Wishlist(models.Model):
+    product = models.ForeignKey(ProductMaster,related_name='wishlist',on_delete = models.CASCADE , db_index = True)
+    user = models.ForeignKey(CustomUser,related_name='wishlist',on_delete=models.CASCADE)
+    created_at=models.DateTimeField(auto_now_add=True)
+    created_by=models.IntegerField(blank=True,null=True)
+    modified_at=models.DateTimeField(auto_now_add=True)
+    modified_by=models.IntegerField(blank=True,null=True)
+    is_active=models.BooleanField(default=True)
+    history = HistoricalRecords()
+
+    class Meta:
+        db_table = 'wishlist'
+        indexes = [ models.Index(fields=['user']) ]
+        ordering = ['-created_at']
