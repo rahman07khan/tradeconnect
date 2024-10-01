@@ -676,54 +676,6 @@ class RegisterUserApi(APIView):
                 "message": str(e)
             }, status=status.HTTP_400_BAD_REQUEST)        
 
-class Login(APIView):
-    def post(self,request):
-        data=request.data
-        mobile_number=data.get('mobile_number')
-        password=data.get('password')
-
-        #check mobile_number and password is given
-        if not mobile_number or not  password:
-            return Response({
-                "status":"error",
-                "message":"mobile_number and password is required to give"
-            },status=status.HTTP_400_BAD_REQUEST)
-        
-        # #check mobile_number and password
-        # try:
-        #     with transaction.atomic():
-        #         user=CustomUser.objects.get(mobile_number=mobile_number)
-        #         roles=Rolemapping.objects.get(user=user)
-        #         role_id=roles.roles
-        #         roles=RoleMaster.objects.filter(id__in=role_id)
-        #         role_name=[role.name for role in roles]
-        #         #only 
-        #         if 'seller' in role_name:
-        #             if(user.is_approval == False):
-        #                 return Response({
-        #                     "status":"error",
-        #                     "message":"Seller is need approval from manager"
-        #                 },status=status.HTTP_400_BAD_REQUEST)
-        user=CustomUser.objects.get(mobile_number=mobile_number)
-        if check_password(password,user.password):
-            #create token
-            token=RefreshToken.for_user(user)
-            access_token=str(token.access_token)
-            return Response({
-                'status':"success",
-                "message":"login successfull",
-                "data":access_token
-            },status=status.HTTP_200_OK)
-        else:
-            return Response({
-                "status":"error",
-                "message":"invaid email or password"
-            },status=status.HTTP_400_BAD_REQUEST)
-        # except Exception as e:
-        #      return Response({
-        #                 "status":"error",
-        #                 "message":str(e)
-        #             },status=status.HTTP_400_BAD_REQUEST)
 class LoginUserApi(APIView):
     #login user
     def post(self,request):
@@ -825,40 +777,80 @@ class RoleLogin(APIView):
                         "status":"error",
                         "message":str(e)
                     },status=status.HTTP_400_BAD_REQUEST)
-class SellerLogin(APIView):
+class SellerApproval(APIView):
     def post(self,request):
         user=request.user
         data=request.data
-        mobile_number=data.get('mobile_number')
-        password=data.get('password')
 
-        #check mobile_number and password is given
-        if not mobile_number or not  password:
-            return Response({
-                "status":"error",
-                "message":"mobile_number and password is required to give"
-            },status=status.HTTP_400_BAD_REQUEST)
-        
-        #user details
+        id=data.get('id')        
         try:
             with transaction.atomic():
        
-                users=CustomUser.objects.get(mobile_number=mobile_number)
+                users=CustomUser.objects.get(id=id,is_approval=False)
                 role=Rolemapping.objects.filter(user=users,roles__name='seller')
-                if role:
-                    if not user.is_approval:
-                        manager_role=Rolemapping.objects.get(user=user,roles__name='manager')   
-                        #print(role_names)
-                        if manager_role:
-                            with transaction.atomic():
-                                users.is_approval=True
-                                users.save()
+                if  not role:
+                    return Response({
+                        "status":"error",
+                        "message":"seller is not exists"
+                    },status=status.HTTP_400_BAD_REQUEST)
+                try:
+
+                    roles=Rolemapping.objects.get(user=user,roles__name='manager') 
+                    users.is_approval=True
+                    users.save()
+
                     return Response({
                         "status":"success",
                         "message":"Seller has approval to login"
                     },status=status.HTTP_200_OK)
+                
+                except Rolemapping.DoesNotExist:
+                    return Response({
+                        "status":"error",
+                        "message":"manager is not exists"
+                    },status=status.HTTP_400_BAD_REQUEST)
+        except CustomUser.DoesNotExist:
+                    return Response({
+                        "status":"error",
+                        "message":"user is not exists"
+                    },status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
              return Response({
                         "status":"error",
                         "message":str(e)
-                    },status=status.HTTP_400_BAD_REQUEST)        
+                    },status=status.HTTP_400_BAD_REQUEST)
+            
+    def get(self,request):
+        users=request.user
+        try:
+            roles=Rolemapping.objects.get(user_id=users,roles__name='manager')
+            if roles:
+                user=CustomUser.objects.filter(is_approval=False)       
+                sellers=Rolemapping.objects.filter(roles__name='seller',user__in=user) 
+                seller_details=[]  
+                for seller in sellers:
+                    seller_details=[ 
+                        {
+                            "id":seller.user.id,
+                            "name":seller.user.username,
+                            "mobile_number":seller.user.mobile_number,
+                            "email":seller.user.email
+                        }       
+                        ]
+                return Response({
+                    "status":"success",
+                    "message":"Approval not give to seller",
+                    "data":seller_details
+                },status=status.HTTP_200_OK)
+        except Rolemapping.DoesNotExist:
+            return Response({
+                "status":"error",
+                "message":"role is not exists"
+            },status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({
+                "status":"error",
+                "message":str(e)
+            },status=status.HTTP_400_BAD_REQUEST)
+                
+
