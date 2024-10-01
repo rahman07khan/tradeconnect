@@ -34,7 +34,7 @@ class RoleMaster(models.Model):
     
     
 class Rolemapping(models.Model):
-    user=models.ForeignKey(CustomUser,on_delete=models.CASCADE)
+    user=models.ForeignKey(CustomUser,on_delete=models.CASCADE,related_name='user_role')
     roles=models.ManyToManyField(RoleMaster)
     is_active=models.BooleanField(default=True)
     created_at=models.DateTimeField(auto_now_add=True)
