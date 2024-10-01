@@ -97,6 +97,7 @@ class Likes(models.Model):
 
 class feedbackmaster(models.Model):
     feedback_type = models.CharField(max_length=50)
+    is_report = models.BooleanField(default=False)
     description = models.TextField(blank=True, null=True)
     created_at=models.DateTimeField(auto_now_add=True)
     created_by=models.IntegerField(blank=True,null=True)
