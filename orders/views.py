@@ -47,8 +47,8 @@ def upload_image_s3( image_file, file_name):
 class CategoryView(APIView):
     def get(self,request):
         user_id=request.user.id
-        maps=Rolemapping.objects.get(user=user_id)
-        if maps.role.name in ['admin','manager']:
+        rolemap=Rolemapping.objects.get(user_id=user_id) 
+        if rolemap.roles.name not in ['admin','manager']:
             try:
                 category=CategoryMaster.objects.filter(is_active=True)
                 data=[]
@@ -90,8 +90,8 @@ class CategoryView(APIView):
             
     def post(self,request):
         user_id=request.user.id
-        maps=Rolemapping.objects.get(user=user_id)
-        if maps.role.name in ['admin','manager']:
+        rolemap=Rolemapping.objects.get(user_id=user_id) 
+        if rolemap.roles.name not in ['admin','manager']:
             try:
                 data=request.data
                 name=data.get("name")
@@ -128,8 +128,8 @@ class CategoryView(APIView):
     
     def put(self,request):
         user_id=request.user.id
-        maps=Rolemapping.objects.get(user=user_id)
-        if maps.role.name in ['admin','manager']:
+        rolemap=Rolemapping.objects.get(user_id=user_id) 
+        if rolemap.roles.name not in ['admin','manager']:
             try:
                 data=request.data 
                 category_id=data.get("category_id")
@@ -170,8 +170,8 @@ class CategoryView(APIView):
             
     def delete(self,request):
         user_id=request.user.id
-        maps=Rolemapping.objects.get(user=user_id)
-        if maps.role.name in ['admin','manager']:
+        rolemap=Rolemapping.objects.get(user_id=user_id) 
+        if rolemap.roles.name not in ['admin','manager']:
             try:
                 data=request.data 
                 category_id=data.get("category_id")
@@ -221,8 +221,8 @@ class ProductView(APIView) :
                 "message":"you would give category id must"
             },status=status.HTTP_400_BAD_REQUEST)
         try:
-            maps = Rolemapping.objects.get(user=user.id)
-            if maps.role.name not in ['admin', 'manager']:
+            rolemap=Rolemapping.objects.get(user_id=user.id) 
+            if rolemap.roles.name not in ['admin','manager']:
                 return Response({
                     "status": "error",
                     "message": "Only admin and manager can access this."
@@ -280,8 +280,8 @@ class ProductView(APIView) :
         
     def post(self,request):
         user_id=request.user.id
-        maps=Rolemapping.objects.get(user=user_id)
-        if maps.role.name in ['admin','manager','seller']:
+        rolemap=Rolemapping.objects.get(user_id=user_id) 
+        if rolemap.roles.name in ['admin','manager']:
             try:
                 data=request.data
                 name=data.get("name")
@@ -339,8 +339,8 @@ class ProductView(APIView) :
             
     def put(self,request):
         user_id=request.user.id
-        maps=Rolemapping.objects.get(user=user_id)
-        if maps.role.name in ['admin','manager','seller']:
+        rolemap=Rolemapping.objects.get(user_id=user_id) 
+        if rolemap.roles.name in ['admin','manager','seller']:
             try:
                 data=request.data 
                 product_id=data.get("product_id")
@@ -394,8 +394,8 @@ class ProductView(APIView) :
             
     def delete(self,request):
         user_id=request.user.id
-        maps=Rolemapping.objects.get(user=user_id)
-        if maps.role.name in ['admin','manager','seller']:
+        rolemap=Rolemapping.objects.get(user_id=user_id) 
+        if rolemap.roles.name in ['admin','manager','seller']:
             try:
                 data=request.data 
                 product_id=data.get("product_id")
@@ -431,10 +431,11 @@ class ProductView(APIView) :
             },status=status.HTTP_401_UNAUTHORIZED) 
 class CartItemUserApi(APIView):
     def get(self,request):
-        user=request.user
-        maps=Rolemapping.objects.get(user=user)
+        users=request.user
         try:
-            if maps.role.name=='buyer':
+            user=CustomUser.objects.get(id=users.id)
+            rolemap=Rolemapping.objects.get(user_id=users.id) 
+            if rolemap.roles.name=='buyer':
                 cart=CartItems.objects.filter(user=user.id,is_active=True,bought_status="pending")
                 data=[]
                 for carts in cart:
@@ -477,7 +478,7 @@ class CartItemUserApi(APIView):
 
 
     def post(self,request):
-        user=request.user
+        users=request.user
         data=request.data
         category_id=data.get('category')
         product_id=data.get('product')
@@ -501,8 +502,9 @@ class CartItemUserApi(APIView):
 
         # Check role
         try:
-            maps = Rolemapping.objects.get(user=user.id)
-            if maps.role.name != 'buyer':
+            user=CustomUser.objects.get(id=users.id)
+            rolemap=Rolemapping.objects.get(user_id=users.id) 
+            if rolemap.roles.name!='buyer':
                 return Response({
                     "status": "error",
                     "message": "Only buyer can access this."
@@ -552,7 +554,7 @@ class CartItemUserApi(APIView):
             }, status=status.HTTP_400_BAD_REQUEST)
     
     def put(self, request):
-        user = request.user
+        users = request.user
         data = request.data
         cart_id = data.get('cart_id')
         quantity = data.get('quantity')
@@ -573,8 +575,9 @@ class CartItemUserApi(APIView):
             },status=status.HTTP_400_BAD_REQUEST)
         #check permission
         try:
-            maps = Rolemapping.objects.get(user=user.id)
-            if maps.role.name != 'buyer':
+            user=CustomUser.objects.get(id=users.id)
+            rolemap=Rolemapping.objects.get(user_id=users.id) 
+            if rolemap.roles.name!='buyer':
                 return Response({
                     "status": "error",
                     "message": "Only buyer can access this."
@@ -621,7 +624,7 @@ class CartItemUserApi(APIView):
             }, status=status.HTTP_400_BAD_REQUEST)
       
     def delete(self,request):
-        user=request.user
+        users=request.user
         data=request.data
         cart_id=data.get('cart_id')
         #check cart_id
@@ -632,8 +635,8 @@ class CartItemUserApi(APIView):
             },status=status.HTTP_400_BAD_REQUEST)
         #check permission
         try:
-            map=Rolemapping.objects.get(id=user.id)
-            if map.role.name != 'buyer':
+            rolemap=Rolemapping.objects.get(user_id=users.id) 
+            if rolemap.roles.name!='buyer':
                 return Response({
                     "status":"error",
                     "message":"only buyer can access it"
@@ -675,9 +678,8 @@ class GetProductBySeller(APIView):
             users=request.user
            
             sold=request.query_params.get("sold","all")
-            maps=Rolemapping.objects.get(user=users.id)
-            
-            if maps.role.name=='seller':
+            rolemap=Rolemapping.objects.get(user_id=users.id) 
+            if rolemap.roles.name=='seller':
                 product=ProductMaster.objects.filter(is_active=True,created_by=users.id)
                 data=[]
                 if sold == 'all':
@@ -826,20 +828,17 @@ class GetProductBySeller(APIView):
         
 """"buying the product """
 class BuyProductUserApi(APIView):
-    def get(self,request):
-        user_role=request.user.last_login_role
-        role=RoleMaster.objects.get(id=int(user_role))
-        print(role.name)
     
     def post(self,request):
-        user=request.user
+        users=request.user
         data=request.data
         quantity=data.get('quantity')
         cart_id=data.get('cart_id')
         #role check
         try:
-            maps=Rolemapping.objects.get(id=user.id)
-            if maps.role.name != 'buyer':
+            user=CustomUser.objects.get(id=users.id)
+            rolemap=Rolemapping.objects.get(user_id=users.id) 
+            if rolemap.roles.name=='buyer':
                 return Response({
                     "status":"error",
                     "message":"only buyer can access it"

@@ -333,78 +333,6 @@ class LoginUserApi(APIView):
                         "message":str(e)
                     },status=status.HTTP_400_BAD_REQUEST)
 
-class RoleLogin(APIView):
-    def post(self,request):
-        try:
-            users=request.user
-            role_type=request.data.get('role_type')
-            with transaction.atomic():
-                user=CustomUser.objects.get(id=users.id)
-                rolemap=Rolemapping.objects.get(user=user.id)
-                print(rolemap.roles)
-                print(role_type)
-                if role_type in rolemap.roles:
-                    user.last_login_role=str(role_type)
-                    user.save()
-                    token=RefreshToken.for_user(user)
-                    access_token=str(token.access_token)
-                    return Response({
-                        'status':"success",
-                        "message":"login successfull",
-                        "data":access_token
-                    },status=status.HTTP_200_OK)
-                # for rolese in rolemap.roles:
-                #     role=RoleMaster.objects.get(id=rolese)
-                #     # print(role_type)
-                #     if rolese==role_type:
-                            
-                #             token=RefreshToken.for_user(user)
-                #             access_token=str(token.access_token)
-                #             return Response({
-                #                 'status':"success",
-                #                 "message":"login successfull",
-                #                 "data":access_token
-                #             },status=status.HTTP_200_OK)
-                return Response({
-                        "status":"error",
-                        "message":"roles not found"
-                    },status=status.HTTP_400_BAD_REQUEST)
-        except CustomUser.DoesNotExist:
-            return Response({
-                "status": "error",
-                "message": "user does not exist."
-            }, status=status.HTTP_400_BAD_REQUEST)
-        except RoleMaster.DoesNotExist:
-            return Response({
-                "status": "error",
-                "message": "Role does not exist."
-            }, status=status.HTTP_400_BAD_REQUEST)
-        except Rolemapping.DoesNotExist:
-            return Response({
-                "status": "error",
-                "message": "Rolemap does not exist."
-            }, status=status.HTTP_400_BAD_REQUEST)               
-        except Exception as e:
-             return Response({
-                        "status":"error",
-                        "message":str(e)
-                    },status=status.HTTP_400_BAD_REQUEST)
-from django.shortcuts import render
-from rest_framework.views import APIView,status
-from rest_framework.response import Response
-from users.models import CustomUser,RoleMaster,Rolemapping
-from django.db import transaction
-from django.shortcuts import render
-from rest_framework.views import APIView,Response,status
-from .models import CustomUser,RoleMaster,Rolemapping
-from django.db import transaction
-from django.contrib.auth.hashers import make_password,check_password
-from rest_framework_simplejwt.tokens import RefreshToken
-
-
-
-# Create your views here.
-
 class RolemasterView(APIView):
     """get role details"""
     def get(self,request):
@@ -728,13 +656,16 @@ class RoleLogin(APIView):
             role_type=request.data.get('role_type')
             with transaction.atomic():
                 user=CustomUser.objects.get(id=users.id)
-                rolemap=Rolemapping.objects.get(user=user.id)
+                rolemap=Rolemapping.objects.get(user_id=user.id)
                 print(rolemap.roles)
                 print(role_type)
-                if role_type in rolemap.roles:
-                    user.last_login_role=str(role_type)
+                if rolemap.roles.filter(id=role_type).exists():
+                    user.last_login_role_id=role_type
                     user.save()
+                    role=RoleMaster.objects.get(id=role_type)
                     token=RefreshToken.for_user(user)
+                    token['role_id']=role.id
+                    token['role_name']=role.name
                     access_token=str(token.access_token)
                     return Response({
                         'status':"success",
@@ -853,4 +784,38 @@ class SellerApproval(APIView):
                 "message":str(e)
             },status=status.HTTP_400_BAD_REQUEST)
                 
-
+   
+class RolemappingView(APIView):
+    def get(self,request):
+        try:
+            print(request)
+            users=request.user.id
+            rolemap=Rolemapping.objects.prefetch_related('roles').get(user_id=users,is_active=True)
+            print(rolemap)
+            data=[]
+            # for rolemaps in rolemap:
+            roles=rolemap.roles.all()
+            role_list = [role.name for role in roles]
+            print(role_list)
+            data.append({
+                    'user_id': rolemap.user_id,
+                    'roles': role_list,
+                    'is_active': rolemap.is_active,
+                    'created_at': rolemap.created_at,
+                    'modified_at': rolemap.modified_at,
+                })
+            return Response({
+                            "status":"success",
+                            "message":"data retrieve successfully",
+                            "data":data
+                        },status=status.HTTP_200_OK)
+        except Rolemapping.DoesNotExist:
+            return Response({
+                "status": "error",
+                "message": "Rolemap does not exist."
+            }, status=status.HTTP_400_BAD_REQUEST)               
+        except Exception as e:
+             return Response({
+                        "status":"error",
+                        "message":str(e)
+                    },status=status.HTTP_400_BAD_REQUEST)
