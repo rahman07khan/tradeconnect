@@ -1,5 +1,5 @@
 from django.urls import path
-from orders.views import CategoryView,ProductView,CartItemUserApi,GetProductBySeller,BuyProductUserApi
+from orders.views import CategoryView,ProductView,CartItemUserApi,GetProductBySeller,BuyProductUserApi,FeedbackMasterAPI
 
 urlpatterns = [
     path('categories/',CategoryView.as_view(),name='categories'),
@@ -7,4 +7,5 @@ urlpatterns = [
     path('cart/',CartItemUserApi.as_view(),name='cart'),
     path('specific/',GetProductBySeller.as_view(),name='specific'),
     path('buy/',BuyProductUserApi.as_view(),name='buy-product'),
+    path('feedback/', FeedbackMasterAPI.as_view()),
 ]

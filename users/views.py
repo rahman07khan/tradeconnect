@@ -310,7 +310,11 @@ class LoginUserApi(APIView):
                 if check_password(password,user.password):
                     #create token
                     token=RefreshToken.for_user(user)
+                    roles = RoleMaster.objects.get(id=user.last_login_role_id)
+                    token['role_id']=roles.id
+                    token['role_name']=roles.name
                     access_token=str(token.access_token)
+                    
                     return Response({
                         'status':"success",
                         "message":"login successfull",

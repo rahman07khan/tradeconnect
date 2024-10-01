@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from orders.models import CategoryMaster,ProductMaster,BuyProducts,CartItems
+from orders.models import CategoryMaster,ProductMaster,BuyProducts,CartItems,feedbackmaster,Feedback
 from users.models import CustomUser, RoleMaster,Rolemapping
 from rest_framework.views import APIView,status
 from rest_framework.response import Response
@@ -8,6 +8,7 @@ from django.conf import settings
 import boto3
 from django.utils import timezone
 from botocore.config import Config
+import jwt
 
 def upload_image_s3( image_file, file_name):
     try:
@@ -42,6 +43,13 @@ def upload_image_s3( image_file, file_name):
                     "status":"failed",
                     "message":str(e)
                 },status=status.HTTP_400_BAD_REQUEST)
+
+
+def getrolename(request):
+    token = request.META.get('HTTP_AUTHORIZATION').split(' ')[1]
+    payload = jwt.decode(token, options={"verify_signature": False})  
+    role_name = payload.get('role_name')
+    return role_name
 
 #CategoryMaster CRUD
 class CategoryView(APIView):
@@ -915,3 +923,141 @@ class BuyProductUserApi(APIView):
             )
         
     
+
+
+
+class FeedbackMasterAPI(APIView):
+
+    def get(self, request):
+        feedback_id = request.query_params.get('feedback_id')
+        try:
+                feedbacks = feedbackmaster.objects.filter(is_report=False)
+                data = [
+                    {
+                        "id": feedback.id,
+                        "feedback_type": feedback.feedback_type,
+                        "description": feedback.description,
+                        "created_at": feedback.created_at,
+                        "modified_at": feedback.modified_at,
+                        "is_active": feedback.is_active,
+                    }
+                    for feedback in feedbacks
+                ]
+                return Response({
+                    "status": "success",
+                    "message": "Feedback list retrieved successfully",
+                    "data": data
+                }, status=status.HTTP_200_OK)
+        except feedbackmaster.DoesNotExist:
+            return Response({
+                "status": "error",
+                "message": "Feedback not found"
+            }, status=status.HTTP_404_NOT_FOUND)
+
+    def post(self, request):
+        user = request.user
+        data = request.data
+        feedback_type = data.get('feedback_type')
+        is_report = data.get('is_report', False)
+        description = data.get('description')
+        created_by = request.user.id
+        
+        
+        if not feedback_type:
+            return Response({
+                "status": "error",
+                "message": "feedback_type is required"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        rolename = getrolename(request)
+        try:
+
+            if rolename == 'Admin':
+
+                with transaction.atomic():
+                    feedback = feedbackmaster.objects.create(
+                        feedback_type=feedback_type,
+                        is_report=is_report,
+                        description=description,
+                        created_by=created_by,
+                        modified_by=created_by
+                    )
+                return Response({
+                    "status": "success",
+                    "message": "Feedback created successfully",
+                }, status=status.HTTP_201_CREATED)
+            
+            else:
+                return Response({"status":"error","message":"only admin can add feedback master"},status=400)
+
+        except Exception as e:
+            return Response({
+                "status": "error",
+                "message": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def put(self, request):
+        data = request.data
+        feedback_id = data.get('feedback_id')
+        feedback_type = data.get('feedback_type')
+        is_report = data.get('is_report')
+        description = data.get('description')
+        modified_by = request.user.id
+
+        try:
+            feedback = feedbackmaster.objects.get(id=feedback_id, is_active=True)
+
+            with transaction.atomic():
+                feedback.feedback_type = feedback_type
+                feedback.is_report = is_report
+                feedback.description = description
+                feedback.modified_by = modified_by
+                feedback.save()
+
+            return Response({
+                "status": "success",
+                "message": "Feedback updated successfully"
+            }, status=status.HTTP_200_OK)
+
+        except feedbackmaster.DoesNotExist:
+            return Response({
+                "status": "error",
+                "message": "Feedback not found"
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        except Exception as e:
+            return Response({
+                "status": "error",
+                "message": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def delete(self, request):
+        data = request.data
+        feedback_id = data.get('feedback_id')
+        if not feedback_id:
+            return Response({"status":"error","message":"required fields"},status=400)
+        feedback = feedbackmaster.objects.get(id=feedback_id, is_active=True)
+        rolename = getrolename(request)
+        
+        try:
+            if rolename == 'Admin':
+                with transaction.atomic():
+                    feedback.is_active = False
+                    feedback.save()
+
+                    return Response({
+                        "status": "success",
+                        "message": "Feedback deleted successfully"
+                    }, status=status.HTTP_200_OK)
+
+        except feedbackmaster.DoesNotExist:
+            return Response({
+                "status": "error",
+                "message": "Feedback not found"
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        except Exception as e:
+            return Response({
+                "status": "error",
+                "message": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
