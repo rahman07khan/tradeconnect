@@ -9,6 +9,12 @@ import boto3
 from django.utils import timezone
 from botocore.config import Config
 import jwt
+import graphene
+from graphene_django import DjangoObjectType
+from django.db import transaction
+import time
+from orders.function import *
+
 
 def upload_image_s3( image_file, file_name):
     try:
@@ -51,12 +57,21 @@ def getrolename(request):
     role_name = payload.get('role_name')
     return role_name
 
+
+def getuserid(request):
+    token = request.META.get('HTTP_AUTHORIZATION').split(' ')[1]
+    payload = jwt.decode(token, options={"verify_signature": False})  
+    user_id = payload.get('user_id')
+    return user_id
+
+
+
 #CategoryMaster CRUD
 class CategoryView(APIView):
     def get(self,request):
         user_id=request.user.id
         rolemap=Rolemapping.objects.get(user_id=user_id) 
-        if rolemap.roles.name not in ['admin','manager']:
+        if rolemap.roles.name not in [ADMIN,MANAGER]:
             try:
                 category=CategoryMaster.objects.filter(is_active=True)
                 data=[]
@@ -94,12 +109,11 @@ class CategoryView(APIView):
                 "status":"error",
                 "message":"only admin and manager is access"
             },status=status.HTTP_401_UNAUTHORIZED)
-            
-            
+                       
     def post(self,request):
         user_id=request.user.id
         rolemap=Rolemapping.objects.get(user_id=user_id) 
-        if rolemap.roles.name not in ['admin','manager']:
+        if rolemap.roles.name not in [ADMIN,MANAGER]:
             try:
                 data=request.data
                 name=data.get("name")
@@ -131,13 +145,12 @@ class CategoryView(APIView):
             return Response({
                 "status":"error",
                 "message":"only admin and manager is access"
-            },status=status.HTTP_401_UNAUTHORIZED)
-            
+            },status=status.HTTP_401_UNAUTHORIZED)         
     
     def put(self,request):
         user_id=request.user.id
         rolemap=Rolemapping.objects.get(user_id=user_id) 
-        if rolemap.roles.name not in ['admin','manager']:
+        if rolemap.roles.name not in [ADMIN,MANAGER]:
             try:
                 data=request.data 
                 category_id=data.get("category_id")
@@ -179,7 +192,7 @@ class CategoryView(APIView):
     def delete(self,request):
         user_id=request.user.id
         rolemap=Rolemapping.objects.get(user_id=user_id) 
-        if rolemap.roles.name not in ['admin','manager']:
+        if rolemap.roles.name not in [ADMIN,MANAGER]:
             try:
                 data=request.data 
                 category_id=data.get("category_id")
@@ -230,7 +243,7 @@ class ProductView(APIView) :
             },status=status.HTTP_400_BAD_REQUEST)
         try:
             rolemap=Rolemapping.objects.get(user_id=user.id) 
-            if rolemap.roles.name not in ['admin','manager']:
+            if rolemap.roles.name not in [ADMIN,MANAGER]:
                 return Response({
                     "status": "error",
                     "message": "Only admin and manager can access this."
@@ -286,28 +299,33 @@ class ProductView(APIView) :
                 "message": "product not exist."
             }, status=status.HTTP_400_BAD_REQUEST)
         
-    def post(self,request):
-        user_id=request.user.id
-        rolemap=Rolemapping.objects.get(user_id=user_id) 
-        if rolemap.roles.name in ['admin','manager']:
-            try:
-                data=request.data
-                name=data.get("name")
-                description=data.get("description")
-                price=data.get("price")
-                quantity=data.get("quantity")
-                category_id=data.get("category")
-                image = request.FILES.getlist('images')
-                category=CategoryMaster.objects.get(id=category_id,is_active=True)
-                if image:
-                    image_urls= []
-                    for image_file in image:
-                        file_name = image_file.name
-                        image_url = upload_image_s3(image_file, file_name)
-                        if image_url: 
-                            image_urls.append(image_url)
+    def post(self, request):
+        user_id = request.user.id
+        try:
+            rolemap = Rolemapping.objects.get(user_id=user_id)
+            rolename = getrolename(request)
+            
+            if rolename == ADMIN:
+                try:
+                    data = request.data
+                    name = data.get("name")
+                    description = data.get("description")
+                    price = data.get("price")
+                    quantity = data.get("quantity")
+                    category_id = data.get("category")
+                    image = request.FILES.getlist('images', None)
+                    category = CategoryMaster.objects.get(id=category_id, is_active=True)
+                    image_urls = []
+                    if image:
+                        
+                        for image_file in image:
+                            file_name = image_file.name
+                            image_url = upload_image_s3(image_file, file_name)
+                            if image_url:
+                                image_urls.append(image_url)
+
                     with transaction.atomic():
-                        product=ProductMaster(
+                        product = ProductMaster(
                             name=name,
                             description=description,
                             price=price,
@@ -316,39 +334,25 @@ class ProductView(APIView) :
                             images=image_urls,
                             created_by=user_id
                         )
-                        # product.save()
-                    return Response({
-                        "status":"success",
-                        "message":"product created successfully",
-                        "image_url": image_urls  
+                        product.save()
 
-                    },status=status.HTTP_201_CREATED)
-                
-            except CategoryMaster.DoesNotExist:
-                return Response({
-                "status":"error",
-                "message":"category not found"
-            },status=status.HTTP_400_BAD_REQUEST)
-            except Exception as e:
-                return Response({
-                    "status":"failed",
-                    "message":str(e)
-                },status=status.HTTP_400_BAD_REQUEST)
-        elif Rolemapping.DoesNotExist:
-            return Response({
-                "status":"error",
-                "message":"role not found"
-            },status=status.HTTP_400_BAD_REQUEST)
-        else:
-            return Response({
-                "status":"error",
-                "message":"only admin and manager is access"
-            },status=status.HTTP_401_UNAUTHORIZED)
-            
+                    return Response({ "status": "success","message": "product created successfully","image_url": image_urls }, status=status.HTTP_201_CREATED)
+
+                except CategoryMaster.DoesNotExist:
+                    return Response({ "status": "error","message": "category not found" }, status=status.HTTP_400_BAD_REQUEST)
+
+                except Exception as e:
+                    return Response({ "status": "failed", "message": str(e) }, status=status.HTTP_400_BAD_REQUEST)
+
+            return Response({ "status": "error", "message": "only admin and manager is access" }, status=status.HTTP_401_UNAUTHORIZED)
+        
+        except Rolemapping.DoesNotExist:
+            return Response({ "status": "error", "message": "role not found"}, status=status.HTTP_400_BAD_REQUEST)
+     
     def put(self,request):
         user_id=request.user.id
         rolemap=Rolemapping.objects.get(user_id=user_id) 
-        if rolemap.roles.name in ['admin','manager','seller']:
+        if rolemap.roles.name in [ADMIN,MANAGER,SELLER]:
             try:
                 data=request.data 
                 product_id=data.get("product_id")
@@ -398,12 +402,11 @@ class ProductView(APIView) :
                 "status":"error",
                 "message":"only admin and manager is access"
             },status=status.HTTP_401_UNAUTHORIZED)
-            
-            
+                    
     def delete(self,request):
         user_id=request.user.id
         rolemap=Rolemapping.objects.get(user_id=user_id) 
-        if rolemap.roles.name in ['admin','manager','seller']:
+        if rolemap.roles.name in [ADMIN,MANAGER,SELLER]:
             try:
                 data=request.data 
                 product_id=data.get("product_id")
@@ -437,6 +440,7 @@ class ProductView(APIView) :
                 "status":"error",
                 "message":"only admin and manager is access"
             },status=status.HTTP_401_UNAUTHORIZED) 
+
 class CartItemUserApi(APIView):
     def get(self,request):
         users=request.user
@@ -677,9 +681,7 @@ class CartItemUserApi(APIView):
                 "message": str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
 
-
-            
-            
+        
 class GetProductBySeller(APIView):
     def get(self,request):
         try:
@@ -687,7 +689,7 @@ class GetProductBySeller(APIView):
            
             sold=request.query_params.get("sold","all")
             rolemap=Rolemapping.objects.get(user_id=users.id) 
-            if rolemap.roles.name=='seller':
+            if rolemap.roles.name==SELLER:
                 product=ProductMaster.objects.filter(is_active=True,created_by=users.id)
                 data=[]
                 if sold == 'all':
@@ -972,7 +974,7 @@ class FeedbackMasterAPI(APIView):
         rolename = getrolename(request)
         try:
 
-            if rolename == 'Admin':
+            if rolename == ADMIN:
 
                 with transaction.atomic():
                     feedback = feedbackmaster.objects.create(
@@ -1040,7 +1042,7 @@ class FeedbackMasterAPI(APIView):
         rolename = getrolename(request)
         
         try:
-            if rolename == 'Admin':
+            if rolename == ADMIN:
                 with transaction.atomic():
                     feedback.is_active = False
                     feedback.save()
@@ -1061,3 +1063,170 @@ class FeedbackMasterAPI(APIView):
                 "status": "error",
                 "message": str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+#####################
+
+class BaseMutation(graphene.Mutation):
+    status = graphene.String()
+    message = graphene.String()
+
+    class Meta:
+        abstract = True
+
+# FeedbackMaster CRUD
+class FeedbackMasterType(DjangoObjectType):
+    created_at = graphene.Float()
+    modified_at = graphene.Float()
+
+    class Meta:
+        model = feedbackmaster 
+        fields = ['id', 'feedback_type', 'description', 'created_at', 'modified_at', 'is_active']
+
+    def resolve_created_at(self, info):
+        return time.mktime(self.created_at.timetuple())
+
+    def resolve_modified_at(self, info):
+        return time.mktime(self.modified_at.timetuple())
+
+class FeedbackMasterCreate(BaseMutation):
+
+    class Arguments:
+        feedback_type = graphene.String(required=True)
+        description = graphene.String(required=True)
+        is_report = graphene.Boolean(default_value=False)
+
+    def mutate(self, info, feedback_type, description, is_report):
+        created_by = getuserid(info.context)
+        rolename = getrolename(info.context)
+
+        if rolename != ADMIN:
+            return FeedbackMasterCreate(status="error", message="Only admin can add feedback master")
+        transaction.set_autocommit(False)
+        try:
+            
+            feedback = feedbackmaster(
+                feedback_type=feedback_type,
+                description=description,
+                is_report=is_report,
+                created_by=created_by,
+                modified_by=created_by
+            )
+            feedback.save()
+            transaction.commit()
+            return FeedbackMasterCreate(status="success", message="feedback created successfully")
+        except Exception as e:
+            return FeedbackMasterCreate(status="error", message=str(e))
+
+class UpdateFeedbackMaster(BaseMutation):
+
+    class Arguments:
+        feedback_id = graphene.ID(required=True)
+        feedback_type = graphene.String(required=False)
+        description = graphene.String(required=False)
+        is_report = graphene.Boolean(required=False)
+
+    def mutate(self, info, feedback_id, feedback_type=None, description=None, is_report=None):
+        modified_by = getuserid(info.context)
+        
+        transaction.set_autocommit(False)
+        try:
+            feedback = feedbackmaster.objects.get(id=feedback_id, is_active=True)
+            feedback.feedback_type = feedback_type
+            feedback.description = description
+            feedback.is_report = is_report
+            feedback.modified_by = modified_by
+            feedback.save()
+            transaction.commit()
+
+            return UpdateFeedbackMaster(status="success", message="Feedback updated successfully")
+        except feedbackmaster.DoesNotExist:
+            return UpdateFeedbackMaster(status="error", message="Feedback not found")
+        except Exception as e:
+            return UpdateFeedbackMaster(status="error", message=str(e))
+
+class FeedbackMasterQuery(graphene.ObjectType):
+    feedbackmaster_list = graphene.List(FeedbackMasterType, is_active=graphene.Boolean())
+    feedbackmaster_by_id = graphene.Field(FeedbackMasterType, id=graphene.ID(required=True))
+    feedbackmaster_by_reports = graphene.List(FeedbackMasterType, is_report=graphene.Boolean(), is_active=graphene.Boolean())
+
+    def resolve_feedbackmaster_list(self, info, is_active=True):
+        return feedbackmaster.objects.filter(is_active=is_active)
+
+    def resolve_feedbackmaster_by_id(self, info, id):
+        try:
+            return feedbackmaster.objects.get(id=id)
+        except feedbackmaster.DoesNotExist:
+            return None
+        
+    def resolve_feedbackmaster_by_reports(self, info, is_report=True, is_active=True):
+        return feedbackmaster.objects.filter(is_report=is_report, is_active=is_active)
+
+
+# Feedback CRUD Operations
+    
+class ProductType(DjangoObjectType):
+    class Meta:
+        model = ProductMaster 
+        fields = ['id', 'name', 'description']  
+
+class UserType(DjangoObjectType):
+    class Meta:
+        model = CustomUser 
+        fields = ['id', 'username', 'email']
+
+class FeedbackType(DjangoObjectType): 
+    class Meta:
+        model = Feedback  
+        fields = ['id', 'product', 'user', 'feedback_master', 'content', 'created_at', 'modified_at', 'is_active'] 
+    product = graphene.Field(ProductType)  
+    user = graphene.Field(UserType)  
+    feedback_master = graphene.Field(FeedbackMasterType)
+        
+class FeedbackCreate(BaseMutation):
+
+    class Arguments:
+        product_id = graphene.ID(required=True)
+        feedback_master_id = graphene.ID(required=False)
+        content = graphene.String(required=True)
+
+    def mutate(self, info, product_id, feedback_master_id, content):
+        user_id = getuserid(info.context)
+        transaction.set_autocommit(False)
+        try:
+            if feedback_master_id:
+                feedback_master = feedbackmaster.objects.get(id=feedback_master_id)
+                if feedback_master.is_report:
+                    print("yes")
+                else:
+                    print("No")
+            feedback = Feedback(
+                product_id=product_id,
+                feedback_master_id=feedback_master_id,
+                user_id=user_id,
+                content=content,
+                created_by=user_id,
+            )
+            feedback.save()
+            transaction.commit()
+
+            return FeedbackCreate(status="success", message="Feedback created successfully")
+        except Exception as e:
+            return FeedbackCreate(status="error", message=str(e))
+
+class FeedbackQuery(graphene.ObjectType):
+    feedback_list = graphene.List(FeedbackType, is_active=graphene.Boolean())
+
+    users_who_gave_feedback = graphene.List(UserType, product_id=graphene.ID(required=True))
+
+    user_feedback = graphene.List(FeedbackType, user_id=graphene.ID(required=True), is_active=graphene.Boolean())
+
+    def resolve_feedback_list(self, info, is_active=True):
+        return Feedback.objects.filter(is_active=is_active)
+
+    def resolve_users_who_gave_feedback(self, info, product_id):
+        user_ids = Feedback.objects.filter(product_id=product_id).select_related('user').values_list('user_id',flat=True)
+        users = CustomUser.objects.filter(id__in=user_ids)
+        return users
+
+    def resolve_user_feedback(self, info, user_id, is_active=True):
+        return Feedback.objects.filter(user_id=user_id, is_active=is_active)

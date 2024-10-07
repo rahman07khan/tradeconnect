@@ -41,7 +41,26 @@ INSTALLED_APPS = [
     'orders',
     'rest_framework',
     'simple_history',
+    'graphene_django',
+    'graphql_jwt.refresh_token.apps.RefreshTokenConfig'
 ]
+
+GRAPHENE = {
+    'SCHEMA': 'orders.schema.schema',  
+    'MIDDLEWARE': [
+        'graphql_jwt.middleware.JSONWebTokenMiddleware',
+    ],
+}
+
+AUTHENTICATION_BACKENDS = [
+    'graphql_jwt.backends.JSONWebTokenBackend',
+    'django.contrib.auth.backends.ModelBackend', 
+]
+
+GRAPHQL_JWT = {
+    'JWT_VERIFY_EXPIRATION': True,
+    'JWT_EXPIRATION_DELTA': timedelta(days=1), 
+}
 REST_FRAMEWORK = {
 'DEFAULT_AUTHENTICATION_CLASSES': (
     'rest_framework_simplejwt.authentication.JWTAuthentication',
