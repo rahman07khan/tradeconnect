@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from orders.models import CategoryMaster,ProductMaster,BuyProducts,CartItems,feedbackmaster,Feedback
+from orders.models import *
 from users.models import CustomUser, RoleMaster,Rolemapping
 from rest_framework.views import APIView,status
 from rest_framework.response import Response
@@ -1209,3 +1209,286 @@ class FeedbackQuery(graphene.ObjectType):
 
     def resolve_user_feedback(self, info, user_id, is_active=True):
         return Feedback.objects.filter(user_id=user_id, is_active=is_active)
+    
+    """Likes Query and Mutation"""                      
+class ProductMasterType(DjangoObjectType):
+   class Meta:
+        model = ProductMaster
+        fields = ('id', 'name', 'description','quantity','price','view_count')  
+
+class CustomUserType(DjangoObjectType):
+    class Meta:
+        model = CustomUser
+        fields = ('id', 'username', 'email')          
+
+class LikeType(DjangoObjectType):
+    class Meta:
+        model=Likes
+        fields = ('id', 'product', 'user', 'created_at', 'is_active')
+    product=graphene.Field( ProductMasterType)
+    user = graphene.Field(CustomUserType) 
+    
+class LikeCountType(graphene.ObjectType):
+    count = graphene.Int()
+    product = graphene.Field(ProductMasterType)  
+              
+class LikesQuery(graphene.ObjectType):
+    all_likes = graphene.List(LikeType)
+    user_likes = graphene.List(LikeType)
+    like_count = graphene.Field(LikeCountType, id=graphene.ID(required=True))  
+
+    def resolve_all_likes(self, info):
+        return Likes.objects.filter(is_active=True)
+
+    def resolve_user_likes(self, info):
+        try:
+            auth_header = info.context.META.get('HTTP_AUTHORIZATION')
+            user_id = getuserid(auth_header)
+            return Likes.objects.filter(user=user_id, is_active=True)
+        except Likes.DoesNotExist:
+            return None
+
+    def resolve_like_count(self, info, id):
+        try:
+            product = ProductMaster.objects.get(id=id, is_active=True)
+            count = Likes.objects.filter(product=product, is_active=True).count()
+
+            return LikeCountType(count=count, product=product)  
+        except (Likes.DoesNotExist, ProductMaster.DoesNotExist):
+            return None
+
+class UpdateLikes(graphene.Mutation):
+    likes = graphene.Field(LikeType)
+
+    class Arguments:
+        likes_id = graphene.ID(required=True)
+        product = graphene.ID(required=True)
+
+    def mutate(self, info, likes_id, product):
+        try:
+            auth_header = info.context.META.get('HTTP_AUTHORIZATION')
+            user_id = getuserid(auth_header)  
+            user = CustomUser.objects.get(id=user_id)
+
+            product_instance = ProductMaster.objects.get(id=product, is_active=True)
+
+            transaction.set_autocommit(False)  
+            try:
+                try:
+                    likes = Likes.objects.get(id=likes_id, product=product_instance, user=user, is_active=True)
+                    likes.is_active = False
+                except Likes.DoesNotExist:
+                    likes = Likes(
+                        product=product_instance,
+                        user=user,
+                        is_active=True,
+                        created_by=user.id,  
+                        modified_by=user.id  
+                    )
+
+                likes.save()
+                transaction.commit()
+                return UpdateLikes(likes=likes)
+
+            except Exception as e:
+                # Rollback in case of any error
+                transaction.rollback()
+                raise Exception(f"An error occurred: {str(e)}")
+
+        except CustomUser.DoesNotExist or ProductMaster.DoesNotExist:
+            raise Exception("data not found.")
+        except Exception as e:
+            raise Exception(f"An error occurred: {str(e)}")
+
+            
+            
+"""comment Query and Mutation"""
+class CommentType(DjangoObjectType):
+    class Meta:
+        model = Comment
+        fields = ('id', 'content', 'created_at', 'is_active')
+    
+    product = graphene.Field(ProductMasterType)
+    user = graphene.Field(CustomUserType)
+    replies = graphene.List(lambda: CommentType)
+
+    def resolve_replies(self, info):
+        # Fetch the replies for this comment
+        return Comment.objects.filter(first_comment=self, is_active=True).order_by('created_at')
+            
+class CommentQuery(graphene.ObjectType):
+    all_comments = graphene.List(CommentType)
+
+    def resolve_all_comments(self, info):
+        top_level_comments = Comment.objects.filter(first_comment=None, is_active=True)
+        return top_level_comments
+
+class CreateComment(graphene.Mutation):
+    comment = graphene.Field(CommentType)
+
+    class Arguments:
+        comment_id = graphene.ID(required=False)
+        content = graphene.String(required=True)
+        product = graphene.ID(required=True)
+
+    def mutate(self, info, content, product, comment_id=None):
+        try:
+            auth_header = info.context.META.get('HTTP_AUTHORIZATION')
+            user_id = getuserid(auth_header)
+            user = CustomUser.objects.get(id=user_id)
+
+            product_instance = ProductMaster.objects.get(id=product, is_active=True)
+
+            transaction.set_autocommit(False)
+            try:
+                if comment_id:
+                    first_comment = Comment.objects.get(id=comment_id, is_active=True)
+                    comment = Comment(
+                        user=user,
+                        product=product_instance,
+                        content=content,
+                        first_comment=first_comment,
+                        created_by=user.id
+                    )
+                else:
+                    comment = Comment(
+                        user=user,
+                        product=product_instance,
+                        content=content,
+                        first_comment=None,
+                        created_by=user.id
+                    )
+
+                comment.save()
+
+                transaction.commit()
+                return CreateComment(comment=comment)
+
+            except Exception as e:
+                transaction.rollback()
+                raise Exception(f"An error occurred while saving the comment: {str(e)}")
+
+       
+        except Comment.DoesNotExist or ProductMaster.DoesNotExist:
+            raise Exception("data not found.")
+        except Exception as e:
+            raise Exception(f"An error occurred: {str(e)}")
+
+        
+class deleteComment(graphene.Mutation):
+    comment = graphene.Field(CommentType)
+
+    class Arguments:
+        comment_id = graphene.ID(required=True)  
+        
+    def mutate(self, info,comment_id=None):
+        try:
+            with transaction.set_autocommit(False):
+                try:
+                    comments=Comment.objects.get(id=comment_id,is_active=True)
+                    comments.is_active=False
+                    comments.save()
+                    transaction.commit()
+                    return deleteComment(comment=comments)
+                except Exception as e:
+                    transaction.rollback()
+                    raise Exception(f"An error occurred while saving the comment: {str(e)}")
+        except Comment.DoesNotExist:
+            return Response({"status": "error","message": "data not exist."}, status=status.HTTP_400_BAD_REQUEST) 
+        except Exception as e:
+            return Response({"status":"error","message":str(e)},status=status.HTTP_400_BAD_REQUEST)
+
+"""WishList Query and Mutation"""
+class Wishlisttype(DjangoObjectType):
+    class Meta:
+        model = Wishlist
+        fields = ('id', 'product', 'user', 'created_at', 'is_active')
+
+    product = graphene.Field(ProductMasterType)
+    user = graphene.Field(CustomUserType)
+    
+class WishQuery(graphene.ObjectType):
+    all_wishlist_items = graphene.List(Wishlisttype)
+    user_wishlist_items = graphene.List(Wishlisttype, user_id=graphene.ID(required=True))
+
+    def resolve_all_wishlist_items(self, info):
+        return Wishlist.objects.filter(is_active=True)
+
+    def resolve_user_wishlist_items(self, info, user_id):
+        try:
+            user = CustomUser.objects.get(id=user_id)
+            return Wishlist.objects.filter(user=user, is_active=True)
+        except CustomUser.DoesNotExist:
+            raise Exception("User not found.")
+
+class UpdateWishlist(graphene.Mutation):
+    wish = graphene.Field(Wishlisttype)
+
+    class Arguments:
+        wish_id = graphene.ID(required=False)
+        product = graphene.ID(required=True)
+
+    def mutate(self, info, wish_id=None, product=None):
+        try:
+            auth_header = info.context.META.get('HTTP_AUTHORIZATION')
+            products = ProductMaster.objects.get(id=product, is_active=True)
+            user_id = getuserid(auth_header)
+            user = CustomUser.objects.get(id=user_id)
+
+            transaction.set_autocommit(False)
+            try:
+                if wish_id:
+                    try:
+                        wish = Wishlist.objects.get(id=wish_id, product=products, user=user, is_active=True)
+                        wish.is_active = False
+                    except Wishlist.DoesNotExist:
+                        raise Exception("Wishlist item does not exist.")
+                else:
+                    wish, created = Wishlist.objects.get_or_create(
+                        product=products, user=user, defaults={'is_active': True, 'created_by': user.id}
+                    )
+                    if not created:
+                        wish.is_active = True
+
+                wish.save()
+                transaction.commit()
+
+            except Exception as e:
+                transaction.rollback()
+                raise Exception(f"An error occurred while processing your request: {str(e)}")
+
+            return UpdateWishlist(wish=wish)
+
+        except ProductMaster.DoesNotExist:
+            raise Exception("Product not found.")
+        except Exception as e:
+            raise Exception(f"An error occurred: {str(e)}")
+        
+        
+        
+class ProductQuery(graphene.ObjectType):
+   all_products=graphene.List(ProductMasterType)
+   uniq_product=graphene.Field(ProductMasterType,id=graphene.ID(required=True))
+   
+   def resolve_all_products(self,info):
+       return ProductMaster.objects.filter(is_active=True)
+   
+   def resolve_all_product(self,info,id):
+        try:
+            product=ProductMaster.objects.get(id=id,is_active=True)  
+            try: 
+                transaction.set_autocommit(False)   
+                product.view_count+=1
+                product.save()
+                transaction.commit()
+                
+            except Exception as e:
+                transaction.rollback()
+                raise Exception(f"An error occurred while processing your request: {str(e)}")
+                
+            return product
+       
+        except ProductMaster.DoesNotExist:
+            raise Exception("Product not found.")
+        except Exception as e:
+            raise Exception(f"An error occurred: {str(e)}")

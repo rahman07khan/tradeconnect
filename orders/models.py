@@ -24,6 +24,7 @@ class ProductMaster(models.Model):
     quantity=models.PositiveIntegerField()
     category=models.ForeignKey(CategoryMaster, on_delete=models.CASCADE)
     images=ArrayField(models.TextField(),null=True,blank=True)
+    view_count=models.IntegerField(default=0)
     is_active=models.BooleanField(default=True)
     created_at=models.DateTimeField(auto_now_add=True)
     created_by=models.IntegerField(blank=True,null=True)
