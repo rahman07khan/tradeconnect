@@ -10,7 +10,7 @@ urlpatterns = [
     path('products/',ProductView.as_view(),name='products'),
     path('cart/',CartItemUserApi.as_view(),name='cart'),
     path('specific/',GetProductBySeller.as_view(),name='specific'),
-    path('buy/',BuyProductUserApi.as_view(),name='buy-product'),
+    path('checkout/',BuyProductUserApi.as_view(),name='buy-product'),
     path('feedback/', FeedbackMasterAPI.as_view()),
     path("graphql/", csrf_exempt(GraphQLView.as_view(graphiql=True, schema=schema))),
 ]

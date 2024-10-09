@@ -11,7 +11,6 @@ from botocore.config import Config
 import jwt
 import graphene
 from graphene_django import DjangoObjectType
-from django.db import transaction
 import time
 from orders.function import *
 
@@ -515,8 +514,10 @@ class CartItemUserApi(APIView):
         # Check role
         try:
             user=CustomUser.objects.get(id=users.id)
-            rolemap=Rolemapping.objects.get(user_id=users.id) 
-            if rolemap.roles.name!='buyer':
+            rolemap=Rolemapping.objects.get(user_id=users.id)
+            rolename = getrolename(request)
+            print(rolename)
+            if rolename!='buyer':
                 return Response({
                     "status": "error",
                     "message": "Only buyer can access this."
@@ -839,91 +840,65 @@ class GetProductBySeller(APIView):
 """"buying the product """
 class BuyProductUserApi(APIView):
     
-    def post(self,request):
-        users=request.user
-        data=request.data
-        quantity=data.get('quantity')
-        cart_id=data.get('cart_id')
-        #role check
+    def post(self, request):
+        users = request.user 
+        created_by = users.id  
+
         try:
-            user=CustomUser.objects.get(id=users.id)
-            rolemap=Rolemapping.objects.get(user_id=users.id) 
-            if rolemap.roles.name=='buyer':
-                return Response({
-                    "status":"error",
-                    "message":"only buyer can access it"
-                },status=status.HTTP_400_BAD_REQUEST)
             
-             #if quantity is less than 1
-            if quantity <1:
+            rolename = getrolename(request)
+            if rolename != 'buyer':
                 return Response({
-                    "status":"error",
-                    "message":"quantity is  must to be 1 and above"
-                },status=status.HTTP_400_BAD_REQUEST)
-            
-            created_by=request.user.id
+                    "status": "error",
+                    "message": "Only buyers can access this."
+                }, status=status.HTTP_400_BAD_REQUEST)
 
-            #the product in cart
-            if cart_id:
-                try:
-                    with transaction.atomic():
+            cart_items = CartItems.objects.filter(user=users, is_active=True)
 
-                        cart_items=CartItems.objects.get(id=cart_id,is_active=True,user=user)
+            if not cart_items.exists():
+                return Response({
+                    "status": "error",
+                    "message": "No active cart items found for this user."
+                }, status=status.HTTP_400_BAD_REQUEST)
 
-                        if quantity > cart_items.quantity:
-                            return Response({
-                                "status":"error",
-                                "message":f"only{cart_items.quantity}is available in the cart"
-                            },status=status.HTTP_400_BAD_REQUEST)
-                        
-                        remaining_quantity=cart_items.quantity-quantity
-                        #assign the quantity to cart_items
-                        cart_items.quantity=quantity
-                        # cart_items.bought_status='completed'
-                        cart_items.save()
+            with transaction.atomic():
+                for cart_item in cart_items:
+                    BuyProducts.objects.create(
+                        user=users,  
+                        category=cart_item.category,
+                        product=cart_item.product,
+                        quantity=cart_item.quantity, 
+                        price=cart_item.quantity * cart_item.price,
+                        cart_id=cart_item.id,
+                        created_by=created_by 
+                    )
 
-                        buy=BuyProducts.objects.create(
-                            user=user,
-                            category=cart_items.category,
-                            product=cart_items.product,
-                            quantity=quantity,
-                            price=quantity * cart_items.price,
-                            cart_id=cart_id,
-                            created_by=created_by
-                        )
-                        #add the remaining product to productmaster
-                        if remaining_quantity>0:
-                            cart_items.product.quantity +=remaining_quantity
-                            cart_items.product.save()
-                            
-                        return Response({
-                            "status":"success",
-                            "message":"Successfully bought the product"
-                        },status=status.HTTP_201_CREATED)
-                except CartItems.DoesNotExist:
-                    return Response({
-                "status":"error",
-                "message":"role is not map to user"
-            },status=status.HTTP_400_BAD_REQUEST)   
+                    cart_item.is_active = False
+                    cart_item.save()  
+
+            return Response({
+                "status": "success",
+                "message": "Successfully bought the products."
+            }, status=status.HTTP_201_CREATED)
+
+        except CartItems.DoesNotExist:
+            return Response({
+                "status": "error",
+                "message": "Cart items not found."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         except Rolemapping.DoesNotExist:
             return Response({
-                "status":"error",
-                "message":"role is not map to user"
-            },status=status.HTTP_400_BAD_REQUEST)
-        
-        except ProductMaster.DoesNotExist:
-            return Response({
-                "status":"error",
-                "message":"product is not exists"
-            },status=status.HTTP_400_BAD_REQUEST)
+                "status": "error",
+                "message": "Role is not mapped to user."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         except Exception as e:
-            return Response(
-                {
-                    "status":"error",
-                    "message":str(e)
-                },status=status.HTTP_400_BAD_REQUEST
-            )
-        
+            return Response({
+                "status": "error",
+                "message": str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
     
 
 
@@ -1188,8 +1163,9 @@ class FeedbackCreate(BaseMutation):
         product_id = graphene.ID(required=True)
         feedback_master_id = graphene.ID(required=False)
         content = graphene.String(required=True)
+        rating = graphene.Int()
 
-    def mutate(self, info, product_id, feedback_master_id, content):
+    def mutate(self, info, product_id, feedback_master_id, content,rating):
         user_id = getuserid(info.context)
         transaction.set_autocommit(False)
         try:
@@ -1199,11 +1175,14 @@ class FeedbackCreate(BaseMutation):
                     print("yes")
                 else:
                     print("No")
+            if rating >5 :
+                return FeedbackCreate(status="error", message="only 5 is made or lesser")
             feedback = Feedback(
                 product_id=product_id,
                 feedback_master_id=feedback_master_id,
                 user_id=user_id,
                 content=content,
+                rating = rating,
                 created_by=user_id,
             )
             feedback.save()

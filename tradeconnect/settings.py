@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'users',
     'orders',
+    'transactions',
     'rest_framework',
     'simple_history',
     'graphene_django',
