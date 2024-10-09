@@ -67,7 +67,41 @@ class OrderDetails(models.Model):
 
     def update_order_status(self):
         if self.payment.payment_status == 'success':
-            self.order_status = 'success'
+            self.order_status = 'Placed'
         else:
             self.order_status = 'failed'
+        self.save()
+
+
+
+class ShipmentDetails(models.Model):
+    order = models.OneToOneField('OrderDetails', related_name='ShipmentDetails', on_delete=models.CASCADE)
+    delivery_person = models.ForeignKey(CustomUser, related_name='ShipmentDetails', on_delete=models.SET_NULL, null=True)
+    pickup_date = models.DateTimeField(null=True, blank=True)
+    delivery_date = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(max_length=20, default="pending") 
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.IntegerField(blank=True, null=True)
+    modified_at = models.DateTimeField(auto_now=True)
+    modified_by = models.IntegerField(blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    history = HistoricalRecords()
+
+    class Meta:
+        db_table = 'ShipmentDetails'
+
+
+class OrderTracking(models.Model):
+    order = models.ForeignKey('OrderDetails', related_name='OrderTracking', on_delete=models.CASCADE)
+    status = models.CharField(max_length=50)  # Order statuses like 'processing', 'shipped', 'out_for_delivery', 'delivered'
+    message = models.TextField(blank=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    history = HistoricalRecords()
+
+    class Meta:
+        db_table = 'OrderTracking'
+
+    def add_tracking(self, status, message):
+        self.status = status
+        self.message = message
         self.save()

@@ -200,7 +200,7 @@ class PaymentCreate(BaseMutation):
                 created_by=user_id
             )
             payment_details.save()
-            
+
             order_details = OrderDetails(
                     user_id=user_id,
                     payment=payment_details,
@@ -210,6 +210,12 @@ class PaymentCreate(BaseMutation):
             order_details.save()
             order_details.checkout.add(*products)
             products.update(is_active=False)
+
+            ordertrack = OrderTracking(
+                order=order_details,
+                status='processing'
+            )
+            ordertrack.save()
 
             transaction.commit()
 
@@ -241,6 +247,84 @@ class PaymentQuery(graphene.ObjectType):
         return PaymentDetails.objects.filter(user_id=user_id,is_active=is_active,payment_status='failed')
 
 
-# Order Query
+# Shipment of order took by the delivary person 
+    
+class ShipmentType(DjangoObjectType):
+    class Meta:
+        model = ShipmentDetails
+    
+
+class ShipmentTaken(BaseMutation):
+
+    class Arguments():
+        order_id = graphene.ID(required = True)
+        pickup_date = graphene.Date(required = True)
+        delivery_date = graphene.Date(required = True)
+
+    def mutate(self,info,order_id,pickup_date,delivery_date):
+        delivery_person_id = getuserid(info.context)
+        transaction.set_autocommit(False)
+        try:
+            
+            order = OrderDetails.objects.get(id = order_id)
+            delivery_person = CustomUser.objects.get(id=delivery_person_id)
+
+            shipment_details = ShipmentDetails(
+                order = order,
+                delivery_person = delivery_person,
+                pickup_date = pickup_date,
+                delivery_date = delivery_date,
+                created_by = delivery_person_id
+            )
+
+            shipment_details.save()
+
+            order_tracking = OrderTracking(order=order, status="shipped")
+            order_tracking.save()
+
+            transaction.commit()
+
+            return ShipmentTaken(status="success", message="Delivery person assigned successfully." )
+        except OrderDetails.DoesNotExist:
+            transaction.rollback()
+            return ShipmentTaken(status="error",message="Order not found.")
+        except CustomUser.DoesNotExist:
+            transaction.rollback()
+            return ShipmentTaken(status="error",message="Delivery person not found.")
+        except Exception as e:
+            transaction.rollback()
+            return ShipmentTaken(status="error",message=str(e))
+        
+class UpdateOrderTrackStatus(BaseMutation):
+    class Arguments:
+        order_id = graphene.ID(required=True)
+        new_status = graphene.String(required=True) 
+
+    def mutate(self, info, order_id, new_status):
+        delivery_person_id = getuserid(info.context)
+        transaction.set_autocommit(False)
+
+        try:
+            shipment_detail = ShipmentDetails.objects.get(order__id=order_id)
+
+            order_tracking = OrderTracking.objects.filter(order=shipment_detail.order).last()  
+            if order_tracking:
+                order_tracking.status = new_status
+                order_tracking.save()
+            else:
+                return UpdateOrderTrackStatus(status="error", message="No tracking record found for this order.")
+
+            transaction.commit()
+
+            return UpdateOrderTrackStatus(status="success", message="Order tracking status updated successfully.")
+
+        except ShipmentDetails.DoesNotExist:
+            transaction.rollback()
+            return UpdateOrderTrackStatus(status="error", message="Shipment details not found.")
+        except Exception as e:
+            transaction.rollback()
+            return UpdateOrderTrackStatus(status="error", message=str(e))
+
+        
     
 

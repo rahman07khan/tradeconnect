@@ -229,7 +229,7 @@ class RegisterUserApi(APIView):
         role_id=[]
         #check role_name
         for role in role_name:
-            if role not in ['manager', 'buyer', 'seller']:
+            if role not in ['manager', 'buyer', 'seller','delivary_person']:
                 return Response({
                     "status": "error",
                     "message": "Invalid role."
