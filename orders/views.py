@@ -56,6 +56,12 @@ def getrolename(request):
     role_name = payload.get('role_name')
     return role_name
 
+def getuser_id(auth_header):
+    token = auth_header.split(' ')[1]
+    payload = jwt.decode(token, options={"verify_signature": False})  
+    user_id = payload.get('user_id')
+    return user_id
+
 
 def getuserid(request):
     token = request.META.get('HTTP_AUTHORIZATION').split(' ')[1]
@@ -1243,7 +1249,7 @@ class LikesQuery(graphene.ObjectType):
     def resolve_user_likes(self, info):
         try:
             auth_header = info.context.META.get('HTTP_AUTHORIZATION')
-            user_id = getuserid(auth_header)
+            user_id = getuser_id(auth_header)
             return Likes.objects.filter(user=user_id, is_active=True)
         except Likes.DoesNotExist:
             return None
@@ -1256,52 +1262,50 @@ class LikesQuery(graphene.ObjectType):
             return LikeCountType(count=count, product=product)  
         except (Likes.DoesNotExist, ProductMaster.DoesNotExist):
             return None
-
+       
 class UpdateLikes(graphene.Mutation):
     likes = graphene.Field(LikeType)
 
     class Arguments:
-        likes_id = graphene.ID(required=True)
+        likes_id = graphene.ID(required=False)
         product = graphene.ID(required=True)
 
-    def mutate(self, info, likes_id, product):
-        try:
-            auth_header = info.context.META.get('HTTP_AUTHORIZATION')
-            user_id = getuserid(auth_header)  
-            user = CustomUser.objects.get(id=user_id)
+    def mutate(self, info, likes_id=None, product=None):
+        auth_header = info.context.META.get('HTTP_AUTHORIZATION')
+        user_id = getuser_id(auth_header)
 
+        try:
+            user = CustomUser.objects.get(id=user_id)
             product_instance = ProductMaster.objects.get(id=product, is_active=True)
 
-            transaction.set_autocommit(False)  
+            transaction.set_autocommit(False)  # Use atomic for transaction management
             try:
-                try:
-                    likes = Likes.objects.get(id=likes_id, product=product_instance, user=user, is_active=True)
-                    likes.is_active = False
-                except Likes.DoesNotExist:
-                    likes = Likes(
+                if likes_id:
+                    try:
+                        likes = Likes.objects.get(id=likes_id, product=product_instance, user=user, is_active=True)
+                        likes.is_active = False  
+                    except Likes.DoesNotExist:
+                        raise Exception("Like item does not exist.")
+                else:
+                    likes, created = Likes.objects.get_or_create(
                         product=product_instance,
                         user=user,
-                        is_active=True,
-                        created_by=user.id,  
-                        modified_by=user.id  
+                        defaults={'is_active': True, 'created_by': user.id, 'modified_by': user.id}
                     )
+                    if not created:
+                        likes.is_active = True  
 
                 likes.save()
                 transaction.commit()
                 return UpdateLikes(likes=likes)
-
             except Exception as e:
-                # Rollback in case of any error
                 transaction.rollback()
                 raise Exception(f"An error occurred: {str(e)}")
-
-        except CustomUser.DoesNotExist or ProductMaster.DoesNotExist:
-            raise Exception("data not found.")
+        except (CustomUser.DoesNotExist, ProductMaster.DoesNotExist):
+            raise Exception("User or product not found.")
         except Exception as e:
-            raise Exception(f"An error occurred: {str(e)}")
-
-            
-            
+            raise Exception(f"An error occurred while processing your request: {str(e)}")
+           
 """comment Query and Mutation"""
 class CommentType(DjangoObjectType):
     class Meta:
@@ -1334,7 +1338,7 @@ class CreateComment(graphene.Mutation):
     def mutate(self, info, content, product, comment_id=None):
         try:
             auth_header = info.context.META.get('HTTP_AUTHORIZATION')
-            user_id = getuserid(auth_header)
+            user_id = getuser_id(auth_header)
             user = CustomUser.objects.get(id=user_id)
 
             product_instance = ProductMaster.objects.get(id=product, is_active=True)
@@ -1373,30 +1377,34 @@ class CreateComment(graphene.Mutation):
             raise Exception("data not found.")
         except Exception as e:
             raise Exception(f"An error occurred: {str(e)}")
-
         
 class deleteComment(graphene.Mutation):
     comment = graphene.Field(CommentType)
 
     class Arguments:
-        comment_id = graphene.ID(required=True)  
-        
-    def mutate(self, info,comment_id=None):
+        comment_id = graphene.ID(required=True)
+
+    def mutate(self, info, comment_id=None):
         try:
-            with transaction.set_autocommit(False):
-                try:
-                    comments=Comment.objects.get(id=comment_id,is_active=True)
-                    comments.is_active=False
-                    comments.save()
-                    transaction.commit()
-                    return deleteComment(comment=comments)
-                except Exception as e:
-                    transaction.rollback()
-                    raise Exception(f"An error occurred while saving the comment: {str(e)}")
-        except Comment.DoesNotExist:
-            return Response({"status": "error","message": "data not exist."}, status=status.HTTP_400_BAD_REQUEST) 
+            transaction.set_autocommit(False)  
+            try:
+                comment = Comment.objects.get(id=comment_id, is_active=True)
+                comment.is_active = False
+                comment.save()
+
+                transaction.commit()  
+                return deleteComment(comment=comment)
+
+            except Comment.DoesNotExist:
+                transaction.rollback()
+                raise Exception("Comment does not exist.")
+            
+            except Exception as e:
+                transaction.rollback()
+                raise Exception(f"An error occurred while processing the comment: {str(e)}")
         except Exception as e:
-            return Response({"status":"error","message":str(e)},status=status.HTTP_400_BAD_REQUEST)
+            raise Exception(f"An error occurred: {str(e)}")
+
 
 """WishList Query and Mutation"""
 class Wishlisttype(DjangoObjectType):
@@ -1432,7 +1440,7 @@ class UpdateWishlist(graphene.Mutation):
         try:
             auth_header = info.context.META.get('HTTP_AUTHORIZATION')
             products = ProductMaster.objects.get(id=product, is_active=True)
-            user_id = getuserid(auth_header)
+            user_id = getuser_id(auth_header)
             user = CustomUser.objects.get(id=user_id)
 
             transaction.set_autocommit(False)
