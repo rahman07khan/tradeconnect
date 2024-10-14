@@ -234,7 +234,7 @@ class CategoryView(APIView):
             
             
 #ProductMaster Crud
-class ProductView(APIView) :
+class ProductViewAPI(APIView) :
     #get product details
     def get(self, request):
         user = request.user
@@ -1215,8 +1215,7 @@ class FeedbackQuery(graphene.ObjectType):
 
     def resolve_user_feedback(self, info, user_id, is_active=True):
         return Feedback.objects.filter(user_id=user_id, is_active=is_active)
-    
-    """Likes Query and Mutation"""                      
+""""product and user table reference"""
 class ProductMasterType(DjangoObjectType):
    class Meta:
         model = ProductMaster
@@ -1226,7 +1225,8 @@ class CustomUserType(DjangoObjectType):
     class Meta:
         model = CustomUser
         fields = ('id', 'username', 'email')          
-
+    
+"""Likes Query and Mutation"""                      
 class LikeType(DjangoObjectType):
     class Meta:
         model=Likes
@@ -1262,49 +1262,41 @@ class LikesQuery(graphene.ObjectType):
             return LikeCountType(count=count, product=product)  
         except (Likes.DoesNotExist, ProductMaster.DoesNotExist):
             return None
-       
-class UpdateLikes(graphene.Mutation):
-    likes = graphene.Field(LikeType)
-
-    class Arguments:
-        likes_id = graphene.ID(required=False)
-        product = graphene.ID(required=True)
-
-    def mutate(self, info, likes_id=None, product=None):
-        auth_header = info.context.META.get('HTTP_AUTHORIZATION')
-        user_id = getuser_id(auth_header)
-
+    
+class LikesAPI(APIView):
+    def put(self,request):
+        user_id=getuserid(request)
+        data=request.data
+        likes_id=data.get("likes_id")
+        product=data.get("product")
         try:
             user = CustomUser.objects.get(id=user_id)
             product_instance = ProductMaster.objects.get(id=product, is_active=True)
 
-            transaction.set_autocommit(False)  # Use atomic for transaction management
+            transaction.set_autocommit(False)  
             try:
                 if likes_id:
                     try:
                         likes = Likes.objects.get(id=likes_id, product=product_instance, user=user, is_active=True)
                         likes.is_active = False  
                     except Likes.DoesNotExist:
-                        raise Exception("Like item does not exist.")
+                        return Response({"status":"error","message":"likes id not found"},status=status.HTTP_400_BAD_REQUEST)
                 else:
-                    likes, created = Likes.objects.get_or_create(
-                        product=product_instance,
-                        user=user,
-                        defaults={'is_active': True, 'created_by': user.id, 'modified_by': user.id}
-                    )
-                    if not created:
-                        likes.is_active = True  
-
+                    like_exists = Likes.objects.filter(user=user, product=product).exists()
+                    if not like_exists:
+                        likes= Likes(product=product_instance,user=user,created_by=user.id)
+                    else:
+                        return Response({"status":"error","message":"likes already exists"},status=status.HTTP_400_BAD_REQUEST)          
                 likes.save()
                 transaction.commit()
-                return UpdateLikes(likes=likes)
+                return Response({"status": "success","message": "Successfully updated the likes.","data":(likes.is_active,likes.id)}, status=status.HTTP_200_OK)
             except Exception as e:
                 transaction.rollback()
-                raise Exception(f"An error occurred: {str(e)}")
-        except (CustomUser.DoesNotExist, ProductMaster.DoesNotExist):
-            raise Exception("User or product not found.")
+                return Response({"status": "error","message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except CustomUser.DoesNotExist or ProductMaster.DoesNotExist:
+            return Response({"status": "error","message": "Data not found."}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            raise Exception(f"An error occurred while processing your request: {str(e)}")
+            return Response({"status": "error","message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
            
 """comment Query and Mutation"""
 class CommentType(DjangoObjectType):
@@ -1327,22 +1319,17 @@ class CommentQuery(graphene.ObjectType):
         top_level_comments = Comment.objects.filter(first_comment=None, is_active=True)
         return top_level_comments
 
-class CreateComment(graphene.Mutation):
-    comment = graphene.Field(CommentType)
 
-    class Arguments:
-        comment_id = graphene.ID(required=False)
-        content = graphene.String(required=True)
-        product = graphene.ID(required=True)
-
-    def mutate(self, info, content, product, comment_id=None):
+class CommentAPI(APIView):
+    def post(self,request):
         try:
-            auth_header = info.context.META.get('HTTP_AUTHORIZATION')
-            user_id = getuser_id(auth_header)
+            data=request.data 
+            user_id=getuser_id(request)
+            comment_id=data.get("comment_id")
+            content=data.get("content")
+            product=data.get("product")
             user = CustomUser.objects.get(id=user_id)
-
             product_instance = ProductMaster.objects.get(id=product, is_active=True)
-
             transaction.set_autocommit(False)
             try:
                 if comment_id:
@@ -1366,25 +1353,22 @@ class CreateComment(graphene.Mutation):
                 comment.save()
 
                 transaction.commit()
-                return CreateComment(comment=comment)
+                return Response({"status": "success","message": "Successfully created the comment.","data":comment.id}, status=status.HTTP_200_OK)
 
+            except Comment.DoesNotExist:
+                transaction.rollback()
+                return Response({"status":"error","message":"comment id not found"},status=status.HTTP_400_BAD_REQUEST)
             except Exception as e:
                 transaction.rollback()
-                raise Exception(f"An error occurred while saving the comment: {str(e)}")
-
-       
-        except Comment.DoesNotExist or ProductMaster.DoesNotExist:
-            raise Exception("data not found.")
+                return Response({"status": "error","message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except CustomUser.DoesNotExist or ProductMaster.DoesNotExist:
+            return Response({"status": "error","message": "Data not found."}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            raise Exception(f"An error occurred: {str(e)}")
-        
-class deleteComment(graphene.Mutation):
-    comment = graphene.Field(CommentType)
-
-    class Arguments:
-        comment_id = graphene.ID(required=True)
-
-    def mutate(self, info, comment_id=None):
+            return Response({"status": "error","message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    
+    def delete(self,request):
+        user_id=getuser_id(request)
+        comment_id=request.query_params.get("comment_id")
         try:
             transaction.set_autocommit(False)  
             try:
@@ -1393,17 +1377,16 @@ class deleteComment(graphene.Mutation):
                 comment.save()
 
                 transaction.commit()  
-                return deleteComment(comment=comment)
-
+                return Response({"status": "success","message": "Successfully deleted the comment."}, status=status.HTTP_200_OK)
             except Comment.DoesNotExist:
                 transaction.rollback()
-                raise Exception("Comment does not exist.")
-            
+                return Response({"status":"error","message":"comment id not found"},status=status.HTTP_400_BAD_REQUEST)
             except Exception as e:
                 transaction.rollback()
-                raise Exception(f"An error occurred while processing the comment: {str(e)}")
+                return Response({"status": "error","message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            raise Exception(f"An error occurred: {str(e)}")
+            return Response({"status": "error","message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        
 
 
 """WishList Query and Mutation"""
@@ -1452,11 +1435,10 @@ class UpdateWishlist(graphene.Mutation):
                     except Wishlist.DoesNotExist:
                         raise Exception("Wishlist item does not exist.")
                 else:
-                    wish, created = Wishlist.objects.get_or_create(
-                        product=products, user=user, defaults={'is_active': True, 'created_by': user.id}
+                    wish = Wishlist(
+                        product=products, user=user,created_by= user.id
                     )
-                    if not created:
-                        wish.is_active = True
+                    
 
                 wish.save()
                 transaction.commit()
@@ -1472,30 +1454,73 @@ class UpdateWishlist(graphene.Mutation):
         except Exception as e:
             raise Exception(f"An error occurred: {str(e)}")
         
+class WishListAPI(APIView):
+    def put(self,request):
+        user_id = getuserid(request)
+        data=request.data 
+        wish_id=data.get("wish_id")
+        product=data.get("product")
+        try:
+            user = CustomUser.objects.get(id=user_id)
+            product_instance = ProductMaster.objects.get(id=product, is_active=True)
+
+            transaction.set_autocommit(False)  
+            try:
+                if wish_id:
+                    try:
+                        wish = Wishlist.objects.get(id=wish_id, product=product_instance, user=user, is_active=True)
+                        wish.is_active = False  
+                    except Wishlist.DoesNotExist:
+                        return Response({"status":"error","message":"likes id not found"},status=status.HTTP_400_BAD_REQUEST)
+                else:
+                    wish_exists = Wishlist.objects.filter(user=user, product=product).exists()
+                    if not wish_exists:
+                        wish= Wishlist(product=product_instance,user=user,created_by=user.id)
+                    else:
+                        return Response({"status":"error","message":"wish already exists"},status=status.HTTP_400_BAD_REQUEST)          
+                wish.save()
+                transaction.commit()
+                return Response({"status": "success","message": "Successfully updated the wishlist.","data":(wish.is_active,wish.id)}, status=status.HTTP_200_OK)
+            except Exception as e:
+                transaction.rollback()
+                return Response({"status": "error","message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except CustomUser.DoesNotExist or ProductMaster.DoesNotExist:
+            return Response({"status": "error","message": "Data not found."}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"status": "error","message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         
         
 class ProductQuery(graphene.ObjectType):
-   all_products=graphene.List(ProductMasterType)
-   uniq_product=graphene.Field(ProductMasterType,id=graphene.ID(required=True))
+    all_products = graphene.List(ProductMasterType)
+    uniq_product = graphene.Field(ProductMasterType, id=graphene.ID(required=True))
    
-   def resolve_all_products(self,info):
-       return ProductMaster.objects.filter(is_active=True)
+    def resolve_all_products(self, info):
+        return ProductMaster.objects.filter(is_active=True)
    
-   def resolve_all_product(self,info,id):
+    def resolve_uniq_product(self, info, id):
         try:
-            product=ProductMaster.objects.get(id=id,is_active=True)  
-            try: 
-                transaction.set_autocommit(False)   
-                product.view_count+=1
-                product.save()
-                transaction.commit()
+            auth_header = info.context.META.get('HTTP_AUTHORIZATION')
+            user_id = getuser_id(auth_header)
+            user = CustomUser.objects.get(id=user_id)
+            product = ProductMaster.objects.get(id=id, is_active=True)
+            
+            try:
+                transaction.set_autocommit(False)
                 
+                product_view_exists = ProductView.objects.filter(user=user, product=product).exists()
+                if not product_view_exists:
+                    product.view_count += 1
+                    product.save()
+                    
+                    product_view = ProductView(user=user,product=product)
+                    product_view.save()
+                    transaction.commit()
+
             except Exception as e:
                 transaction.rollback()
                 raise Exception(f"An error occurred while processing your request: {str(e)}")
                 
             return product
-       
         except ProductMaster.DoesNotExist:
             raise Exception("Product not found.")
         except Exception as e:
