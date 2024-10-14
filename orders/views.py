@@ -73,52 +73,52 @@ def getuserid(request):
 
 #CategoryMaster CRUD
 class CategoryView(APIView):
+
     def get(self,request):
         user_id=request.user.id
-        rolemap=Rolemapping.objects.get(user_id=user_id) 
-        if rolemap.roles.name not in [ADMIN,MANAGER]:
-            try:
-                category=CategoryMaster.objects.filter(is_active=True)
-                data=[]
-                for categories in category:
-                    data.append({
-                        "category_id":categories.id,
-                        "name":categories.name,
-                        "description":categories.description,
-                        "is_active":categories.is_active,
-                        "created_by":categories.created_by,
-                        "modified_by":categories.modified_by
-                    })
-                    return Response({
-                        "status":"success",
-                        "message":"data retrieve successfully",
-                        "data":data
-                    },status=status.HTTP_200_OK)
-            except CategoryMaster.DoesNotExist:
-                return Response({
+        rolemap = getrolename(request)
+        # rolemap=Rolemapping.objects.get(user_id=user_id)
+        if rolemap not in[ADMIN,MANAGER]:
+            return Response(
+                {
                     "status":"error",
-                    "message":"category not found"
-                },status=status.HTTP_400_BAD_REQUEST)        
-            except Exception as e:
-                return Response({
-                    "status":"failed",
-                    "message":str(e)
+                    "message":"user role is not exists"
                 },status=status.HTTP_400_BAD_REQUEST)
-        elif Rolemapping.DoesNotExist:
+        # rolemap=Rolemapping.objects.get(user_id=user_id) 
+        
+        try:
+            category=CategoryMaster.objects.filter(is_active=True)
+            data=[]
+            for categories in category:
+                data.append({
+                    "category_id":categories.id,
+                    "name":categories.name,
+                    "description":categories.description,
+                    "is_active":categories.is_active,
+                    "created_by":categories.created_by,
+                    "modified_by":categories.modified_by
+                })
+                return Response({
+                    "status":"success",
+                    "message":"data retrieve successfully",
+                    "data":data
+                },status=status.HTTP_200_OK)
+        except CategoryMaster.DoesNotExist:
             return Response({
                 "status":"error",
-                "message":"role not found"
+                "message":"category not found"
+            },status=status.HTTP_400_BAD_REQUEST)        
+        except Exception as e:
+            return Response({
+                "status":"failed",
+                "message":str(e)
             },status=status.HTTP_400_BAD_REQUEST)
-        else:
-            return Response({
-                "status":"error",
-                "message":"only admin and manager is access"
-            },status=status.HTTP_401_UNAUTHORIZED)
                        
     def post(self,request):
         user_id=request.user.id
-        rolemap=Rolemapping.objects.get(user_id=user_id) 
-        if rolemap.roles.name not in [ADMIN,MANAGER]:
+        rolemap = getrolename(request)
+        # rolemap=Rolemapping.objects.get(user_id=user_id) 
+        if rolemap.roles.name in [ADMIN,MANAGER]:
             try:
                 data=request.data
                 name=data.get("name")
@@ -154,8 +154,9 @@ class CategoryView(APIView):
     
     def put(self,request):
         user_id=request.user.id
-        rolemap=Rolemapping.objects.get(user_id=user_id) 
-        if rolemap.roles.name not in [ADMIN,MANAGER]:
+        rolemap = getrolename(request)
+        # rolemap=Rolemapping.objects.get(user_id=user_id) 
+        if rolemap in [ADMIN,MANAGER]:
             try:
                 data=request.data 
                 category_id=data.get("category_id")
@@ -167,8 +168,9 @@ class CategoryView(APIView):
                     categories.name = name
                     categories.description = description
                     categories.modified_by=request.user.id
+                    
                 
-                    categories.save()
+                    # categories.save()
                     return Response({
                         "status":"success",
                         "message":"category updated successfully"
@@ -196,8 +198,9 @@ class CategoryView(APIView):
             
     def delete(self,request):
         user_id=request.user.id
-        rolemap=Rolemapping.objects.get(user_id=user_id) 
-        if rolemap.roles.name not in [ADMIN,MANAGER]:
+        rolemap = getrolename(request)
+        # rolemap=Rolemapping.objects.get(user_id=user_id) 
+        if rolemap.roles.name  in [ADMIN,MANAGER]:
             try:
                 data=request.data 
                 category_id=data.get("category_id")
@@ -231,8 +234,145 @@ class CategoryView(APIView):
                 "status":"error",
                 "message":"only admin and manager is access"
             },status=status.HTTP_401_UNAUTHORIZED)
+
+class SubCategoryView(APIView):
+
+    def post(self,request):
+        user_id=request.user.id
+        data=request.data
+        rolemap = getrolename(request)
+        # rolemap=Rolemapping.objects.get(user_id=user_id)
+        if rolemap not in[ADMIN,MANAGER]:
+            return Response(
+                {
+                    "status":"error",
+                    "message":"user role is not exists"
+                },status=status.HTTP_400_BAD_REQUEST)
+        try:
+            id=data.get('id')
+            name=data.get('name')
+            description=data.get('description')
+            try:
+                category=CategoryMaster.objects.get(id=id)
+            except CategoryMaster.DoesNotExist:
+                return Response(
+                {
+                    "status":"error",
+                    "message":"category  does not exists"
+                },status=status.HTTP_400_BAD_REQUEST)
+            with transaction.atomic():
+                datas=SubCategory.objects.create(
+                    name=name,
+                    description=description,
+                    category=category,
+                    created_by=user_id
+                )
+                return Response({
+                    "status":"successfull",
+                    "message":"data enter successfull"
+                },status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({
+                "status":"error",
+                "message":str(e)
+            },status=status.HTTP_400_BAD_REQUEST)            
+    def put(self, request):
+        user_id = request.user.id
+        data = request.data 
+        rolemap = getrolename(request)
+        if rolemap not in[ADMIN,MANAGER]:
+            return Response(
+                {
+                    "status":"error",
+                    "message":"user role is not exists"
+                },status=status.HTTP_400_BAD_REQUEST)
+        try:
+            id = data.get('id')
+            name = data.get("name")
+            description = data.get("description")
+
+            # Start a transaction
+            transaction.set_autocommit(False)
             
             
+            category = SubCategory.objects.get(id=id, is_active=True)
+            category.name = name
+            category.description = description
+            category.modified_by = user_id
+        
+            category.save()
+
+            # Commit the transaction
+            transaction.commit()
+
+            return Response({
+                "status": "success",
+                "message": "Update the data successfully"
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            transaction.rollback()
+
+            return Response({
+                "status": "error",
+                "message": str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+    def delete(self,request):
+        user_id=request.user.id
+        # rolemap=Rolemapping.objects.get(user_id=user_id) 
+        rolemap = getrolename(request)
+        if rolemap not in[ADMIN,MANAGER]:
+            return Response(
+                {
+                    "status":"error",
+                    "message":"user role is not exists"
+                },status=status.HTTP_400_BAD_REQUEST)
+        try:
+            data=request.data 
+            id=data.get("id")
+            
+            with transaction.atomic():
+                categories=SubCategory.objects.get(id=id,is_active=True)
+                categories.is_active=False
+                
+                categories.save()
+                return Response({
+                    "status":"success",
+                    "message":"sub category is not active"
+                },status=status.HTTP_200_OK)
+        except CategoryMaster.DoesNotExist:
+            return Response({
+                "status":"error",
+                "message":"category not found or not active"
+            },status=status.HTTP_400_BAD_REQUEST)        
+        except Exception as e:
+            return Response({
+                "status":"failed",
+                "message":str(e)
+            },status=status.HTTP_400_BAD_REQUEST)
+class CategoryType(DjangoObjectType):
+    class Meta:
+        model = CategoryMaster
+        fields = ('id', 'name', 'description')
+
+class SubcategoryType(DjangoObjectType):
+    class Meta:
+        model = SubCategory
+        fields = ('id', 'name', 'description','is_active')
+    category = graphene.Field(CategoryType)
+
+class SubCategoryQuery(graphene.ObjectType): 
+    all_subcategory = graphene.List(SubcategoryType)
+    unique_subcategory = graphene.Field(SubcategoryType, id=graphene.ID(required=True)) 
+    
+    def resolve_all_subcategory(self, info):
+        return SubCategory.objects.filter(is_active=True)
+    
+    def resolve_unique_subcategory(self, info, id):
+        try:
+            return SubCategory.objects.get(id=id, is_active=True)
+        except SubCategory.DoesNotExist:
+            return None
 #ProductMaster Crud
 class ProductView(APIView) :
     #get product details
@@ -240,15 +380,16 @@ class ProductView(APIView) :
         user = request.user
         category_id = request.query_params.get('category_id')
         product_id = request.query_params.get('product_id')
-        print(f"Received category_id: {category_id}, product_id: {product_id}")
+        # print(f"Received category_id: {category_id}, product_id: {product_id}")
         if not category_id:
             return Response({
                 "status":"error",
                 "message":"you would give category id must"
             },status=status.HTTP_400_BAD_REQUEST)
         try:
-            rolemap=Rolemapping.objects.get(user_id=user.id) 
-            if rolemap.roles.name not in [ADMIN,MANAGER]:
+            # rolemap=Rolemapping.objects.get(user_id=user.id)
+            rolemap = getrolename(request)
+            if rolemap not in [ADMIN,MANAGER]:
                 return Response({
                     "status": "error",
                     "message": "Only admin and manager can access this."
@@ -307,7 +448,7 @@ class ProductView(APIView) :
     def post(self, request):
         user_id = request.user.id
         try:
-            rolemap = Rolemapping.objects.get(user_id=user_id)
+            # rolemap = Rolemapping.objects.get(user_id=user_id)
             rolename = getrolename(request)
             
             if rolename == ADMIN:
@@ -318,8 +459,11 @@ class ProductView(APIView) :
                     price = data.get("price")
                     quantity = data.get("quantity")
                     category_id = data.get("category")
+                    subcategory_id=data.get("subcategory",None)
                     image = request.FILES.getlist('images', None)
                     category = CategoryMaster.objects.get(id=category_id, is_active=True)
+                    if subcategory_id:
+                        subcategory=SubCategory.objects.get(id=subcategory_id,is_active=True)
                     image_urls = []
                     if image:
                         
@@ -336,10 +480,11 @@ class ProductView(APIView) :
                             price=price,
                             quantity=quantity,
                             category=category,
+                            sub_category=subcategory if subcategory_id else None,
                             images=image_urls,
                             created_by=user_id
                         )
-                        product.save()
+                        
 
                     return Response({ "status": "success","message": "product created successfully","image_url": image_urls }, status=status.HTTP_201_CREATED)
 
@@ -356,8 +501,9 @@ class ProductView(APIView) :
      
     def put(self,request):
         user_id=request.user.id
-        rolemap=Rolemapping.objects.get(user_id=user_id) 
-        if rolemap.roles.name in [ADMIN,MANAGER,SELLER]:
+        rolemap = getrolename(request)
+        # rolemap=Rolemapping.objects.get(user_id=user_id) 
+        if rolemap in [ADMIN,MANAGER,SELLER]:
             try:
                 data=request.data 
                 product_id=data.get("product_id")
@@ -410,8 +556,9 @@ class ProductView(APIView) :
                     
     def delete(self,request):
         user_id=request.user.id
-        rolemap=Rolemapping.objects.get(user_id=user_id) 
-        if rolemap.roles.name in [ADMIN,MANAGER,SELLER]:
+        rolemap = getrolename(request)
+        # rolemap=Rolemapping.objects.get(user_id=user_id) 
+        if rolemap in [ADMIN,MANAGER,SELLER]:
             try:
                 data=request.data 
                 product_id=data.get("product_id")
@@ -451,8 +598,9 @@ class CartItemUserApi(APIView):
         users=request.user
         try:
             user=CustomUser.objects.get(id=users.id)
-            rolemap=Rolemapping.objects.get(user_id=users.id) 
-            if rolemap.roles.name=='buyer':
+            rolemap = getrolename(request)
+            # rolemap=Rolemapping.objects.get(user_id=users.id) 
+            if rolemap:
                 cart=CartItems.objects.filter(user=user.id,is_active=True,bought_status="pending")
                 data=[]
                 for carts in cart:
@@ -520,7 +668,7 @@ class CartItemUserApi(APIView):
         # Check role
         try:
             user=CustomUser.objects.get(id=users.id)
-            rolemap=Rolemapping.objects.get(user_id=users.id)
+            # rolemap=Rolemapping.objects.get(user_id=users.id)
             rolename = getrolename(request)
             print(rolename)
             if rolename!='buyer':
@@ -595,8 +743,9 @@ class CartItemUserApi(APIView):
         #check permission
         try:
             user=CustomUser.objects.get(id=users.id)
-            rolemap=Rolemapping.objects.get(user_id=users.id) 
-            if rolemap.roles.name!='buyer':
+            rolemap = getrolename(request)
+            #rolemap=Rolemapping.objects.get(user_id=users.id) 
+            if rolemap !='buyer':
                 return Response({
                     "status": "error",
                     "message": "Only buyer can access this."
@@ -845,7 +994,7 @@ class GetProductBySeller(APIView):
         
 """"buying the product """
 class BuyProductUserApi(APIView):
-    
+   
     def post(self, request):
         users = request.user 
         created_by = users.id  

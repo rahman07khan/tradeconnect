@@ -15,6 +15,18 @@ class CategoryMaster(models.Model):
     modified_by=models.IntegerField(blank=True,null=True)
     history = HistoricalRecords()
 
+"""sub category"""
+class SubCategory(models.Model):
+    name=models.CharField(max_length=50)
+    description=models.TextField(max_length=100,null=True,blank=True)
+    category=models.ForeignKey(CategoryMaster, on_delete=models.CASCADE,related_name='category')
+    created_at=models.DateTimeField(auto_now_add=True)
+    created_by=models.IntegerField(blank=True,null=True)
+    modified_at=models.DateTimeField(auto_now_add=True)
+    modified_by=models.IntegerField(blank=True,null=True)
+    is_active=models.BooleanField(default=True)
+    history = HistoricalRecords()
+
     
 """product table"""   
 class ProductMaster(models.Model):
@@ -23,6 +35,7 @@ class ProductMaster(models.Model):
     price=models.DecimalField(max_digits=10, decimal_places=2)
     quantity=models.PositiveIntegerField()
     category=models.ForeignKey(CategoryMaster, on_delete=models.CASCADE)
+    sub_category=models.ForeignKey(SubCategory,on_delete=models.CASCADE,null=True,blank=True)
     images=ArrayField(models.TextField(),null=True,blank=True)
     view_count=models.IntegerField(default=0)
     is_active=models.BooleanField(default=True)

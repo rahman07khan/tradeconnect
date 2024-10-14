@@ -12,7 +12,7 @@ class Mutation(graphene.ObjectType):
 
 
 
-class Query(FeedbackMasterQuery,FeedbackQuery,LikesQuery,CommentQuery,WishQuery,ProductQuery,graphene.ObjectType):
+class Query(FeedbackMasterQuery,FeedbackQuery,LikesQuery,CommentQuery,WishQuery,ProductQuery,SubCategoryQuery,graphene.ObjectType):
     pass
 
 

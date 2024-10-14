@@ -1,5 +1,5 @@
 from django.urls import path
-from orders.views import CategoryView,ProductView,CartItemUserApi,GetProductBySeller,BuyProductUserApi,FeedbackMasterAPI
+from orders.views import CategoryView,ProductView,CartItemUserApi,GetProductBySeller,BuyProductUserApi,FeedbackMasterAPI,SubCategoryView
 from graphene_django.views import GraphQLView
 from django.views.decorators.csrf import csrf_exempt
 
@@ -12,5 +12,6 @@ urlpatterns = [
     path('specific/',GetProductBySeller.as_view(),name='specific'),
     path('checkout/',BuyProductUserApi.as_view(),name='buy-product'),
     path('feedback/', FeedbackMasterAPI.as_view()),
+    path('subcategory/', SubCategoryView.as_view()),
     path("graphql/", csrf_exempt(GraphQLView.as_view(graphiql=True, schema=schema))),
 ]
