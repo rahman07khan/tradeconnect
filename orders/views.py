@@ -461,6 +461,15 @@ class ProductViewAPI(APIView) :
                     category_id = data.get("category")
                     subcategory_id=data.get("subcategory",None)
                     image = request.FILES.getlist('images', None)
+                    return_window_days = data.get("return_window_days", 14)
+                    # print("Return window days to save:", return_window_days)
+
+                    if return_window_days < 1 or return_window_days > 30:
+                        return Response(
+                            { "status": "error",
+                              "message": "Return window days must be between 1 and 30." 
+                              }, status=status.HTTP_400_BAD_REQUEST)
+
                     category = CategoryMaster.objects.get(id=category_id, is_active=True)
                     if subcategory_id:
                         subcategory=SubCategory.objects.get(id=subcategory_id,is_active=True)
@@ -482,9 +491,10 @@ class ProductViewAPI(APIView) :
                             category=category,
                             sub_category=subcategory if subcategory_id else None,
                             images=image_urls,
-                            created_by=user_id
+                            created_by=user_id,
+                            return_window_days=return_window_days
                         )
-                        
+                        # product.save()
 
                     return Response({ "status": "success","message": "product created successfully","image_url": image_urls }, status=status.HTTP_201_CREATED)
 
