@@ -460,7 +460,7 @@ class ProductViewAPI(APIView) :
                     quantity = data.get("quantity")
                     category_id = data.get("category")
                     subcategory_id=data.get("subcategory",None)
-                    image = request.FILES.getlist('images', None)
+                    image = request.FILES.getlist('images', None)       
                     category = CategoryMaster.objects.get(id=category_id, is_active=True)
                     if subcategory_id:
                         subcategory=SubCategory.objects.get(id=subcategory_id,is_active=True)
@@ -483,8 +483,9 @@ class ProductViewAPI(APIView) :
                             sub_category=subcategory if subcategory_id else None,
                             images=image_urls,
                             created_by=user_id
+
                         )
-                        
+                        # product.save()
 
                     return Response({ "status": "success","message": "product created successfully","image_url": image_urls }, status=status.HTTP_201_CREATED)
 

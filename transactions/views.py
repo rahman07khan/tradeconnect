@@ -7,9 +7,13 @@ import graphene
 from graphene_django import DjangoObjectType
 import time
 import jwt
+from rest_framework.views import APIView,status
 from orders.function import *
 from django.db.models import Sum
-
+from rest_framework.response import Response
+from datetime import timedelta
+from django.utils import timezone
+# from .models import send_amount_to_seller
 
 def getrolename(request):
     token = request.META.get('HTTP_AUTHORIZATION').split(' ')[1]
@@ -191,7 +195,7 @@ class PaymentCreate(BaseMutation):
 
             wallet.balance -= total_amount
             wallet.save()
-
+            
             payment_details = PaymentDetails(
                 user_id=user_id,
                 wallet_transaction=wallet_transaction,
@@ -325,6 +329,95 @@ class UpdateOrderTrackStatus(BaseMutation):
             transaction.rollback()
             return UpdateOrderTrackStatus(status="error", message=str(e))
 
-        
+class ProcessPaymentsView(APIView):
     
+    def get(self, request):
+        rolename = getrolename(request)  
+        if rolename != MANAGER:
+            return Response({
+                "status": "error",
+                "message": "Only manager has permission"
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        date = request.query_params.get('date')
+
+        if date:
+            try:
+                date = timezone.datetime.strptime(date, "%Y-%m-%d").date() 
+            except ValueError:
+                return Response({
+                    "status": "error",
+                    "message": "Invalid date format, please provide it in YYYY-MM-DD format"
+                }, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            date = timezone.now().date()
+        pending_payments = PaymentDetails.objects.filter(is_send_user=False, payment_status='success')
+        if not pending_payments:
+            return Response({"status": "success", "message": "No pending payments"})
+
+        seller_data = []
+        
+        for payment in pending_payments:
+            order_details = payment.OrderDetails
+            order_queryset = OrderTracking.objects.filter(order=order_details, status='delivered')
+            return_date = calculate_return_date(order_queryset)
+
+            if return_date and return_date.date() == date:
+                for order in order_queryset:
+                    for data in order_details.checkout.all():
+                        seller = data.user
+                        seller_data.append({
+                            'seller_id': seller.id,
+                            'seller_name': seller.username,
+                            'total_amount': payment.total_amount,
+                            'product_id': data.product.id,
+                            'product_name': data.product.name,
+                            'order_id': order_details.id  
+                        })
+
+        if seller_data:
+            return Response({
+                "status": "success",
+                "message": seller_data
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response({
+                "status": "error",
+                "message": "No matching orders for the provided date."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+
+    def put(self, request):
+        pending_payments = PaymentDetails.objects.filter(is_send_user=False, payment_status='success') 
+        results = []        
+        for payment in pending_payments:
+            try:
+                order_tracking = OrderTracking.objects.filter(order=payment.OrderDetails, status='delivered').order_by('-updated_at').first()
+                if order_tracking:
+                    payment_sent = send_amount_to_seller(payment, order_tracking)
+                    print("order",payment)
+                    if payment_sent:
+                        results.append({
+                            'order_id': order_tracking.order.id,
+                            'message': f"Payment of {payment.total_amount} sent to seller."
+                        })
+                    elif payment_sent is None:
+                        results.append({
+                            'order_id': order_tracking.order.id,
+                            'message': "Order status is not 'delivered'."
+                        })
+                    else:
+                        results.append({
+                            'order_id': order_tracking.order.id,
+                            'message': "Return window is still open."
+                        })
+            except OrderTracking.DoesNotExist:
+                results.append({
+                    'payment_id': payment.id,
+                    'message': "Order tracking not found."
+                })
+        return Response({"status":"success",'data': results}, status=status.HTTP_200_OK)
+
 

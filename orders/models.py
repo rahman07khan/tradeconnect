@@ -45,6 +45,8 @@ class ProductMaster(models.Model):
     created_by=models.IntegerField(blank=True,null=True)
     modified_at=models.DateTimeField(auto_now_add=True)
     modified_by=models.IntegerField(blank=True,null=True)
+    refund = models.BooleanField(default=False)
+    refund_period = models.IntegerField(blank=True,null=True)
     history = HistoricalRecords()
 
 class ProductView(models.Model):

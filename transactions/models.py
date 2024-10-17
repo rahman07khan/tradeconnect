@@ -3,6 +3,7 @@ from users.models import *
 from orders.models import *
 from simple_history.models import HistoricalRecords
 
+
 class WalletDetails(models.Model):
     user = models.ForeignKey(CustomUser,related_name='WalletDetails', on_delete=models.CASCADE)
     balance = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)  
@@ -39,6 +40,8 @@ class PaymentDetails(models.Model):
     wallet_transaction = models.ForeignKey(WalletTransaction,related_name='PaymentDetails',on_delete = models.CASCADE)
     total_amount = models.DecimalField(max_digits=10,decimal_places=2)
     payment_status = models.CharField(max_length = 20, default="pending")
+    is_send_user =models.BooleanField(default=False) 
+    to_sender_amount = models.FloatField(max_length=10,blank=True,null=True)
     created_at=models.DateTimeField(auto_now_add=True)
     created_by=models.IntegerField(blank=True,null=True)
     modified_at=models.DateTimeField(auto_now_add=True)
@@ -48,8 +51,8 @@ class PaymentDetails(models.Model):
 
     class Meta:
         db_table = 'PaymentDetails'
-
-
+    
+    
 class OrderDetails(models.Model):
     user = models.ForeignKey(CustomUser, related_name='OrderDetails', on_delete=models.CASCADE)
     checkout = models.ManyToManyField(BuyProducts, related_name='OrderDetails',)
@@ -105,3 +108,4 @@ class OrderTracking(models.Model):
         self.status = status
         self.message = message
         self.save()
+
