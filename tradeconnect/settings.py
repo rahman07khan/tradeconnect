@@ -126,11 +126,11 @@ WSGI_APPLICATION = 'tradeconnect.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'test_dev_ydu8',
-        'USER': 'tradeconnect',
-        'PASSWORD': 'g9Ld4bJuI0AgAV6x2hqW57n3MeYug9tH',
-        'HOST': 'dpg-crkij0u8ii6s7380a0qg-a.singapore-postgres.render.com',
-        'PORT': '5432',
+        'NAME': 'ecommerce',
+        'USER': 'postgres.xfdirqwiqzzsfhgrsvfq',
+        'PASSWORD': 'Postgres@123#',
+        'HOST': 'aws-0-ap-south-1.pooler.supabase.com',
+        'PORT': '6543',
     }
 }
 

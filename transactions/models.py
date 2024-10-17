@@ -99,7 +99,6 @@ class OrderTracking(models.Model):
     status = models.CharField(max_length=50)  # Order statuses like 'processing', 'shipped', 'out_for_delivery', 'delivered'
     message = models.TextField(blank=True, null=True)
     updated_at = models.DateTimeField(auto_now=True)
-    return_date = models.DateField(null=True, blank=True)
     history = HistoricalRecords()
 
     class Meta:
