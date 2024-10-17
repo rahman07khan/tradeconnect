@@ -117,40 +117,33 @@ class CategoryView(APIView):
     def post(self,request):
         user_id=request.user.id
         rolemap = getrolename(request)
-        # rolemap=Rolemapping.objects.get(user_id=user_id) 
-        if rolemap.roles.name in [ADMIN,MANAGER]:
+        if rolemap in [ADMIN,MANAGER]:
             try:
                 data=request.data
                 name=data.get("name")
                 description=data.get("description")
                 
+
+                if not name:
+                    return Response({"status":"error","message":"name is mandatory"})
+                
                 with transaction.atomic():
+                    
                     category=CategoryMaster(
                         name=name,
                         description=description,
-                        created_by=request.user.id,
+                        created_by=user_id,
                     )
+
                     category.save()
-                    return Response({
-                        "status":"success",
-                        "message":"category created successfully"
-                    },status=status.HTTP_201_CREATED)  
+                    return Response({"status":"success","message":"category created successfully"},status=status.HTTP_201_CREATED)  
             
             except Exception as e:
-                return Response({
-                    "status":"failed",
-                    "message":str(e)
-                },status=status.HTTP_400_BAD_REQUEST)  
+                return Response({ "status":"failed", "message":str(e) },status=status.HTTP_400_BAD_REQUEST)  
         elif Rolemapping.DoesNotExist:
-            return Response({
-                "status":"error",
-                "message":"role not found"
-            },status=status.HTTP_400_BAD_REQUEST)
+            return Response({ "status":"error","message":"role not found" },status=status.HTTP_400_BAD_REQUEST)
         else:
-            return Response({
-                "status":"error",
-                "message":"only admin and manager is access"
-            },status=status.HTTP_401_UNAUTHORIZED)         
+            return Response({ "status":"error","message":"only admin and manager is access" },status=status.HTTP_401_UNAUTHORIZED)         
     
     def put(self,request):
         user_id=request.user.id
@@ -276,6 +269,7 @@ class SubCategoryView(APIView):
                 "status":"error",
                 "message":str(e)
             },status=status.HTTP_400_BAD_REQUEST)            
+   
     def put(self, request):
         user_id = request.user.id
         data = request.data 
@@ -317,6 +311,7 @@ class SubCategoryView(APIView):
                 "status": "error",
                 "message": str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
+    
     def delete(self,request):
         user_id=request.user.id
         # rolemap=Rolemapping.objects.get(user_id=user_id) 
@@ -350,6 +345,8 @@ class SubCategoryView(APIView):
                 "status":"failed",
                 "message":str(e)
             },status=status.HTTP_400_BAD_REQUEST)
+        
+
 class CategoryType(DjangoObjectType):
     class Meta:
         model = CategoryMaster
@@ -373,7 +370,9 @@ class SubCategoryQuery(graphene.ObjectType):
             return SubCategory.objects.get(id=id, is_active=True)
         except SubCategory.DoesNotExist:
             return None
+
 #ProductMaster Crud
+
 class ProductViewAPI(APIView) :
     #get product details
     def get(self, request):
@@ -462,6 +461,7 @@ class ProductViewAPI(APIView) :
                     subcategory_id=data.get("subcategory",None)
                     image = request.FILES.getlist('images', None)       
                     category = CategoryMaster.objects.get(id=category_id, is_active=True)
+                    refund_period = data.get("refund_period")
                     if subcategory_id:
                         subcategory=SubCategory.objects.get(id=subcategory_id,is_active=True)
                     image_urls = []
@@ -474,6 +474,7 @@ class ProductViewAPI(APIView) :
                                 image_urls.append(image_url)
 
                     with transaction.atomic():
+                        refund_status = True if refund_period else False
                         product = ProductMaster(
                             name=name,
                             description=description,
@@ -482,6 +483,8 @@ class ProductViewAPI(APIView) :
                             category=category,
                             sub_category=subcategory if subcategory_id else None,
                             images=image_urls,
+                            refund_period = refund_period,
+                            refund=refund_status,
                             created_by=user_id
 
                         )
@@ -1365,7 +1368,8 @@ class FeedbackQuery(graphene.ObjectType):
 
     def resolve_user_feedback(self, info, user_id, is_active=True):
         return Feedback.objects.filter(user_id=user_id, is_active=is_active)
-""""product and user table reference"""
+    
+
 class ProductMasterType(DjangoObjectType):
    class Meta:
         model = ProductMaster

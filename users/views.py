@@ -9,6 +9,7 @@ from .models import CustomUser,RoleMaster,Rolemapping
 from django.db import transaction
 from django.contrib.auth.hashers import make_password,check_password
 from rest_framework_simplejwt.tokens import RefreshToken
+from orders.function import *
 
 class RolemasterView(APIView):
     """get role details"""
@@ -229,7 +230,7 @@ class RegisterUserApi(APIView):
         role_id=[]
         #check role_name
         for role in role_name:
-            if role not in ['manager', 'buyer', 'seller','delivary_person']:
+            if role not in ['Admin','manager', 'buyer', 'seller','delivary_person']:
                 return Response({
                     "status": "error",
                     "message": "Invalid role."
@@ -238,7 +239,7 @@ class RegisterUserApi(APIView):
 
             #check if role_name is manager
             if role == 'manager':
-                users=Rolemapping.objects.filter(user=user,roles__name='admin')
+                users=Rolemapping.objects.filter(user=user,roles__name=ADMIN)
               
                 if not users:
                     return Response({"status":"error",

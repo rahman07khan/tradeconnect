@@ -7,6 +7,7 @@ class Mutation(graphene.ObjectType):
     create_payment = PaymentCreate.Field()
     create_shipment = ShipmentTaken.Field()
     update_ordertrack = UpdateOrderTrackStatus.Field()
+    process_refund = ProcessRefund.Field()
 
 class Query(WalletQuery,WalletTransactionQuery,PaymentQuery,graphene.ObjectType):
     pass

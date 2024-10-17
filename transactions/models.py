@@ -2,7 +2,8 @@ from django.db import models
 from users.models import *
 from orders.models import *
 from simple_history.models import HistoricalRecords
-
+from django.utils import timezone
+from datetime import timedelta
 
 class WalletDetails(models.Model):
     user = models.ForeignKey(CustomUser,related_name='WalletDetails', on_delete=models.CASCADE)
@@ -47,6 +48,8 @@ class PaymentDetails(models.Model):
     modified_at=models.DateTimeField(auto_now_add=True)
     modified_by=models.IntegerField(blank=True,null=True)
     is_active=models.BooleanField(default=True)
+    is_send_user =models.BooleanField(default=False)
+    to_sender_amount = models.FloatField(max_length=10,blank=True,null=True)
     history = HistoricalRecords()
 
     class Meta:
@@ -57,7 +60,7 @@ class OrderDetails(models.Model):
     user = models.ForeignKey(CustomUser, related_name='OrderDetails', on_delete=models.CASCADE)
     checkout = models.ManyToManyField(BuyProducts, related_name='OrderDetails',)
     payment = models.OneToOneField(PaymentDetails, related_name='OrderDetails', on_delete=models.CASCADE)
-    order_status = models.CharField(max_length=20, default="pending") 
+    order_status = models.CharField(max_length=20, default="pending")
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.IntegerField(blank=True, null=True)
     modified_at = models.DateTimeField(auto_now_add=True)
@@ -109,3 +112,84 @@ class OrderTracking(models.Model):
         self.message = message
         self.save()
 
+class ReturnDetails(models.Model):
+    order = models.ForeignKey(OrderDetails, on_delete=models.CASCADE, related_name='returns')
+    product = models.ForeignKey(ProductMaster, on_delete=models.CASCADE, related_name='returns')
+    pickup = models.BooleanField(default=False)  
+    return_authorization = models.CharField(max_length=20,default='pending')
+    inspect_status = models.BooleanField(default=False)  
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    reason = models.TextField( null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.IntegerField(blank=True, null=True)
+    modified_at = models.DateTimeField(auto_now=True)
+    modified_by = models.IntegerField(blank=True, null=True)
+    class Meta:
+        db_table = 'ReturnDetails'
+
+
+
+class RefundDetails(models.Model):
+    return_details = models.ForeignKey(ReturnDetails, related_name='refunds', on_delete=models.CASCADE)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    return_fees = models.DecimalField(max_digits=10, decimal_places=2, default=50.00)
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    status = models.CharField(max_length=20, default="pending") 
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.IntegerField(blank=True, null=True)
+    modified_at = models.DateTimeField(auto_now=True)
+    modified_by = models.IntegerField(blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = 'RefundDetails'
+
+
+
+
+class ReturnStageMaster(models.Model):
+    stage_no = models.PositiveIntegerField()
+    stage_name = models.CharField(max_length=100)
+    description = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.IntegerField(blank=True, null=True)
+    modified_at = models.DateTimeField(auto_now_add=True)
+    modified_by = models.IntegerField(blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    history = HistoricalRecords()
+
+    class Meta:
+        db_table = 'ReturnStageMaster'
+
+
+class ReturnPolicyType(models.Model):
+    name = models.CharField(max_length=100)
+    stages = ArrayField(models.PositiveIntegerField(), blank=True, null=True)  
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.IntegerField(blank=True, null=True)
+    modified_at = models.DateTimeField(auto_now_add=True)
+    modified_by = models.IntegerField(blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    history = HistoricalRecords()
+
+    class Meta:
+        db_table = 'ReturnPolicyType'
+
+
+
+class ReturnStageDetails(models.Model):
+    order = models.ForeignKey(OrderDetails, on_delete=models.CASCADE, related_name='return_stages')
+    product = models.ForeignKey(BuyProducts, on_delete=models.CASCADE, related_name='return_stages')
+    return_policy_type = models.ForeignKey(ReturnPolicyType, on_delete=models.CASCADE)
+    stage = models.ForeignKey(ReturnStageMaster, on_delete=models.CASCADE)
+    status = models.CharField(max_length=20, default='pending')
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.IntegerField(blank=True, null=True)
+    modified_at = models.DateTimeField(auto_now_add=True)
+    modified_by = models.IntegerField(blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    history = HistoricalRecords()
+
+    class Meta:
+        db_table = 'ReturnStageDetails'
+        unique_together = ['order', 'product', 'stage'] 

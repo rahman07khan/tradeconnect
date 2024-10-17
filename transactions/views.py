@@ -14,6 +14,27 @@ from rest_framework.response import Response
 from datetime import timedelta
 from django.utils import timezone
 # from .models import send_amount_to_seller
+from django.shortcuts import render
+from orders.models import *
+from users.models import CustomUser, RoleMaster,Rolemapping
+from rest_framework.views import APIView,status
+from rest_framework.response import Response
+from django.db import transaction
+from django.conf import settings
+import boto3
+from django.utils import timezone
+from botocore.config import Config
+import time
+from orders.function import *
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from django.db import transaction
+from .models import *
+from django.utils import timezone
+from datetime import timedelta
+
+
 
 def getrolename(request):
     token = request.META.get('HTTP_AUTHORIZATION').split(' ')[1]
@@ -419,5 +440,201 @@ class ProcessPaymentsView(APIView):
                     'message': "Order tracking not found."
                 })
         return Response({"status":"success",'data': results}, status=status.HTTP_200_OK)
+
+# refund process 
+class RefundDetailsType(DjangoObjectType):
+    class Meta:
+        model = RefundDetails
+        fields = ['id', 'order', 'amount', 'status', 'created_at', 'updated_at', 'is_active']  
+    
+
+class ProcessRefund(graphene.Mutation):
+    class Arguments:
+        order_id = graphene.ID(required=True)
+        description = graphene.String()
+
+    status = graphene.String()
+    message = graphene.String()
+    refund = graphene.Field(RefundDetailsType)
+
+    def mutate(self, info, order_id,description):
+        user_id = getuserid(info.context)
+        try:
+            with transaction.atomic():
+                order = OrderDetails.objects.select_related('payment').get(id=order_id, user_id=user_id, is_active=True)
+
+                if order.refunds.filter(is_active=True).exists():
+                    return ProcessRefund(status="error", message="Refund has already been processed for this order.", refund=None)
+
+                latest_tracking = OrderTracking.objects.filter(order=order,status = 'delivered').order_by('-updated_at')
+
+                if not latest_tracking or not latest_tracking.updated_at:
+                    return ProcessRefund(status="error", message="No tracking information found for this order.", refund=None)
+
+                now = timezone.now()
+                tracking_update_time = latest_tracking.updated_at
+                if now - tracking_update_time > timedelta(days=14):
+                    return ProcessRefund(status="error", message="Refund period of 14 days has exceeded.", refund=None)
+
+                if order.payment.payment_status != 'success':
+                    return ProcessRefund(status="error", message="Cannot refund a failed payment.", refund=None)
+
+                wallet = WalletDetails.objects.get(user_id=user_id)
+                wallet.balance += order.payment.total_amount
+                wallet.save()
+
+                wallet_transaction = WalletTransaction(
+                    wallet=wallet,
+                    transaction_type='CREDIT',
+                    amount=order.payment.total_amount,
+                    description=f"Refund for Order ID {order_id}",
+                    created_by=user_id
+                )
+                wallet_transaction.save()
+
+                refund = RefundDetails(
+                    order=order,
+                    amount=order.payment.total_amount,
+                    description = description,
+                    status='completed',
+                    is_active=True
+                )
+                refund.save()
+
+                return ProcessRefund(status="success", message="Refund processed successfully.")
+
+        except OrderDetails.DoesNotExist:
+            return ProcessRefund(status="error", message="Order not found.", refund=None)
+        except Exception as e:
+            return ProcessRefund(status="error", message=str(e), refund=None)
+
+# create order by payment
+
+class CreateOrderView(APIView):
+
+    def post(self, request):
+        user_id = request.user.id
+        wallet_transaction_id = request.data.get('wallet_transaction_id')
+
+        products = BuyProducts.objects.filter(user_id=user_id, is_active=True)
+
+        if not products.exists():
+            return Response({"status": "error", "message": "No active products found in the cart"}, status=400)
+
+        try:
+            with transaction.atomic():
+                total_amount = products.aggregate(total_price=Sum('price'))['total_price']
+                wallet_transaction = WalletTransaction.objects.get(id=wallet_transaction_id)
+                wallet = WalletDetails.objects.get(user_id=user_id)
+
+                if wallet.balance < total_amount:
+                    return Response({"status": "failed", "message": "Insufficient balance in wallet"}, status=400)
+
+                wallet.balance -= total_amount
+                wallet.save()
+
+                payment_details = PaymentDetails(
+                    user_id=user_id,
+                    wallet_transaction=wallet_transaction,
+                    total_amount=total_amount,
+                    payment_status='success',
+                    created_by=user_id
+                )
+                payment_details.save()
+
+                order_details = OrderDetails(
+                    user_id=user_id,
+                    payment=payment_details,
+                    created_by=user_id
+                )
+                order_details.save()
+
+                for product in products:
+                    order_details.checkout.add(product)  
+
+                products.update(is_active=False)
+
+                return Response({"status": "success", "message": "Order placed successfully"})
+
+        except WalletTransaction.DoesNotExist:
+            return Response({"status": "error", "message": "Invalid wallet transaction"}, status=400)
+
+        except Exception as e:
+            return Response({"status": "error", "message": str(e)}, status=500)
+
+# returnstagemaster CRUD
+
+class CreateReturnStageMasterView(APIView):
+
+    def post(self, request):
+        user=request.user
+        data = request.data
+        stage_no = data.get('stage_no')
+        stage_name = data.get('stage_name')
+        description = data.get('description', '')
+        created_by = request.user.id  
+
+        
+        if not (stage_no or stage_name):
+            return Response({"status": "error", "message": "Stage number and name are required"}, status=400)
+        
+        rolemap = getrolename(request)
+        if rolemap in [ADMIN,MANAGER]:
+
+            try:
+                with transaction.atomic():
+
+                    return_stage = ReturnStageMaster(
+                        stage_no=stage_no,
+                        stage_name=stage_name,
+                        description=description,
+                        created_by=created_by,
+                        modified_by=created_by 
+                    )
+                    return_stage.save()
+
+                    return Response({"status": "success", "message": "Return stage created successfully"}, status=201)
+
+            except Exception as e:
+                return Response({"status": "error", "message": str(e)}, status=500)
+        
+        else:
+            return Response({ "status":"error","message":"only admin and manager is access" },status=400) 
+
+# returnpolicytype
+        
+
+class ReturnPolicyTypeView(APIView):
+
+    def post(self,request):
+        user = request.user
+        data = request.data
+        name = data.get('name')
+        stages = data.get('stages',[])
+        created_by = user.id
+
+        if not (name or stages):
+            return Response({"status":"error","message":"name and stage are required"},status = 400)
+        
+        rolename = getrolename(request)
+
+        if rolename in  ADMIN:
+            try:
+                with transaction.atomic():
+                    return_policy_type = ReturnPolicyType(
+                        name=name,
+                        stages=stages,  
+                        created_by=created_by,
+                        modified_by=created_by  
+                    )
+                    return_policy_type.save()
+
+                    return Response({"status": "success", "message": "Return policy type created successfully"}, status=200)
+
+            except Exception as e:
+                return Response({"status": "error", "message": str(e)}, status=400)
+            
+        else:
+            return Response({"status":"error","message":"only admin has the access"},status = 400)
 
 
