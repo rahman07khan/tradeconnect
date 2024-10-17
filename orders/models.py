@@ -36,6 +36,8 @@ class ProductMaster(models.Model):
     quantity=models.PositiveIntegerField()
     category=models.ForeignKey(CategoryMaster, on_delete=models.CASCADE)
     sub_category=models.ForeignKey(SubCategory,on_delete=models.CASCADE,null=True,blank=True)
+    refund = models.BooleanField(default=False)
+    refund_period = models.IntegerField(blank=True,null=True)
     images=ArrayField(models.TextField(),null=True,blank=True)
     view_count=models.IntegerField(default=0)
     is_active=models.BooleanField(default=True)
@@ -53,21 +55,6 @@ class ProductView(models.Model):
     modified_at=models.DateTimeField(auto_now_add=True)
     history = HistoricalRecords()
 
-    
-""" buy product"""
-# class BuyProduct(models.Model):
-#     category=models.ForeignKey(CategoryMaster,on_delete=models.CASCADE)
-#     product=models.ForeignKey(ProductMaster,on_delete=models.CASCADE)
-#     user = models.ForeignKey(CustomUser,on_delete=models.CASCADE)
-#     cart_id=models.CharField(max_length=15,null=True)
-#     quantity=models.PositiveIntegerField()
-#     price=models.DecimalField(max_digits=10, decimal_places=2)
-#     is_active=models.BooleanField(default=True)
-#     created_at=models.DateTimeField(auto_now_add=True)
-#     created_by=models.IntegerField(blank=True,null=True)
-#     modified_at=models.DateTimeField(auto_now_add=True)
-#     modified_by=models.IntegerField(blank=True,null=True)
-#     history = HistoricalRecords()
 
 
 """"cart table"""
