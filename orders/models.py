@@ -172,3 +172,5 @@ class Wishlist(models.Model):
         db_table = 'wishlist'
         indexes = [ models.Index(fields=['user']) ]
         ordering = ['-created_at']
+        
+

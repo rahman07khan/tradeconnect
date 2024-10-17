@@ -33,21 +33,10 @@ from django.db import transaction
 from .models import *
 from django.utils import timezone
 from datetime import timedelta
+from orders.function import *
 
 
 
-def getrolename(request):
-    token = request.META.get('HTTP_AUTHORIZATION').split(' ')[1]
-    payload = jwt.decode(token, options={"verify_signature": False})  
-    role_name = payload.get('role_name')
-    return role_name
-
-
-def getuserid(request):
-    token = request.META.get('HTTP_AUTHORIZATION').split(' ')[1]
-    payload = jwt.decode(token, options={"verify_signature": False})  
-    user_id = payload.get('user_id')
-    return user_id
 
 
 class BaseMutation(graphene.Mutation):
@@ -81,7 +70,7 @@ class WalletDetailsCreate(BaseMutation):
         currency = graphene.String(default_value = 'INR')
 
     def mutate(self, info, balance, currency):
-        user_id = getuserid(info.context)
+        role,user_id = getuserinfo(info.context)
         transaction.set_autocommit(False)
         try:
             walletdetails = WalletDetails(
@@ -132,7 +121,7 @@ class WalletTransactionCreate(BaseMutation):
 
     def mutate(self,info,wallet_id,transaction_type,amount,description=None,card_number = None,card_type =None,expiry_date = None,cvv =None):
         
-        user_id = getuserid(info.context)
+        role,user_id = getuserinfo(info.context)
 
         transaction.set_autocommit(False)
         try:
@@ -195,7 +184,7 @@ class PaymentCreate(BaseMutation):
         wallet_transaction_id = graphene.Int(required=True)
 
     def mutate(self, info, wallet_transaction_id):
-        user_id = getuserid(info.context)
+        role,user_id = getuserinfo(info.context)
         total_amount = 0
         transaction.set_autocommit(False)
 
@@ -264,11 +253,11 @@ class PaymentQuery(graphene.ObjectType):
         return PaymentDetails.objects.filter(is_active=is_active)
     
     def resolve_payment_success(self,info,is_active=True):
-        user_id = getuserid(info.context)
+        role,user_id = getuserinfo(info.context)
         return PaymentDetails.objects.filter(user_id=user_id,is_active=is_active,payment_status='success')
     
     def resolve_payment_failed(self,info,is_active=True):
-        user_id = getuserid(info.context)
+        role,user_id = getuserinfo(info.context)
         return PaymentDetails.objects.filter(user_id=user_id,is_active=is_active,payment_status='failed')
 
 
@@ -287,7 +276,7 @@ class ShipmentTaken(BaseMutation):
         delivery_date = graphene.Date(required = True)
 
     def mutate(self,info,order_id,pickup_date,delivery_date):
-        delivery_person_id = getuserid(info.context)
+        role,delivery_person_id = getuserinfo(info.context)
         transaction.set_autocommit(False)
         try:
             
@@ -326,7 +315,7 @@ class UpdateOrderTrackStatus(BaseMutation):
         new_status = graphene.String(required=True) 
 
     def mutate(self, info, order_id, new_status):
-        delivery_person_id = getuserid(info.context)
+        role,delivery_person_id = getuserinfo(info.context)
         transaction.set_autocommit(False)
 
         try:
@@ -353,7 +342,7 @@ class UpdateOrderTrackStatus(BaseMutation):
 class ProcessPaymentsView(APIView):
     
     def get(self, request):
-        rolename = getrolename(request)  
+        rolename,user = getuserinfo(request)  
         if rolename != MANAGER:
             return Response({
                 "status": "error",
@@ -458,7 +447,7 @@ class ProcessRefund(graphene.Mutation):
     refund = graphene.Field(RefundDetailsType)
 
     def mutate(self, info, order_id,description):
-        user_id = getuserid(info.context)
+        role,user_id = getuserinfo(info.context)
         try:
             with transaction.atomic():
                 order = OrderDetails.objects.select_related('payment').get(id=order_id, user_id=user_id, is_active=True)
@@ -578,7 +567,7 @@ class CreateReturnStageMasterView(APIView):
         if not (stage_no or stage_name):
             return Response({"status": "error", "message": "Stage number and name are required"}, status=400)
         
-        rolemap = getrolename(request)
+        rolemap,user = getuserinfo(request)
         if rolemap in [ADMIN,MANAGER]:
 
             try:
@@ -616,7 +605,7 @@ class ReturnPolicyTypeView(APIView):
         if not (name or stages):
             return Response({"status":"error","message":"name and stage are required"},status = 400)
         
-        rolename = getrolename(request)
+        rolename,user = getuserinfo(request)
 
         if rolename in  ADMIN:
             try:

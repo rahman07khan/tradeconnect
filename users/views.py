@@ -1,11 +1,11 @@
 from django.shortcuts import render
 from rest_framework.views import APIView,status
 from rest_framework.response import Response
-from users.models import CustomUser,RoleMaster,Rolemapping
+from users.models import CustomUser,RoleMaster,Rolemapping,SellerDetail
 from django.db import transaction
 from django.shortcuts import render
 from rest_framework.views import APIView,Response,status
-from .models import CustomUser,RoleMaster,Rolemapping
+from orders.models import CategoryMaster
 from django.db import transaction
 from django.contrib.auth.hashers import make_password,check_password
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -502,3 +502,115 @@ class RolemappingView(APIView):
                         "status":"error",
                         "message":str(e)
                     },status=status.HTTP_400_BAD_REQUEST)
+             
+class SellerRegistrationAPI(APIView):
+    def post(self, request):
+        mobile_no = request.data.get("mobile_no")
+        email = request.data.get("email")
+        seller_details = request.data.get("Seller_detail")
+        try:
+        
+            for seller_data in seller_details:
+                business_name = seller_data.get("bussiness_name")
+                business_email = seller_data.get("bussiness_email")
+                category_id = seller_data.get("category_id")
+                bussiness_ph=seller_data.get("bussiness_ph")
+                bussiness_address=seller_data.get("bussiness_add")
+                shipping_address=seller_data.get("shipping_add")
+                organization=seller_data.get("organization")
+                documents = request.FILES.getlist('documents', None)
+
+
+                if not mobile_no or not email:
+                    return Response({"status":"error","message": "Mobile number and email are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+                if not seller_details:
+                    return Response({"status":"error","message":"Seller details are required and must be a list."}, status=status.HTTP_400_BAD_REQUEST)  
+                    
+                try:
+                    transaction.set_autocommit(False)
+                    user = CustomUser.objects.get(mobile_number=mobile_no, email=email)
+                    category = CategoryMaster.objects.get(id=category_id)
+                    role=RoleMaster.objects.get(name=SELLER,is_active=True)
+                    
+
+                    if not business_name or not business_email or not category_id:
+                        transaction.rollback()
+                        return Response({"status":"error","message": f"Missing required fields in seller data: {seller_data}"},status=status.HTTP_400_BAD_REQUEST)
+                    
+                    document_urls = []
+                    if documents:
+                                
+                                for document in documents:
+                                    file_name = document.name
+                                    document_url = upload_image_s3(document, file_name)
+                                    if document_url:
+                                        document_urls.append(document_url)
+                    rolemap_exists=Rolemapping.objects.get(user=user)
+                    if role not in rolemap_exists.roles.all():
+                        rolemap_exists.roles.add(role) 
+                        rolemap_exists.save()
+                        print(rolemap_exists.roles)
+                    
+                    seller_detail = SellerDetail(
+                        user=user,
+                        bussiness_name=business_name,
+                        bussiness_email=business_email,
+                        bussiness_ph=bussiness_ph,
+                        bussiness_address=bussiness_address,
+                        shipping_address=shipping_address,  
+                        organization=organization,
+                        documents=document_urls, 
+                        category=category,
+                    )
+                    
+                    seller_detail.save()
+                    rolemap_exists.save()
+                    transaction.commit()
+                except CustomUser.DoesNotExist or RoleMaster.DoesNotExist:
+                    return Response({"status":"error","message":"data not found."}, status=status.HTTP_404_NOT_FOUND)
+                except CategoryMaster.DoesNotExist:
+                        transaction.rollback()
+                        return Response({"status":"error","message": f"Invalid category ID: {category_id}"}, status=status.HTTP_400_BAD_REQUEST)
+                        
+                except Exception as e:
+                    transaction.rollback()
+                    return Response({ "status": "failed", "message": str(e) }, status=status.HTTP_400_BAD_REQUEST)
+            
+            return Response({"status":"sucess","message": "Seller registered successfully"}, status=status.HTTP_201_CREATED)
+        except Exception as e:
+                    return Response({ "status": "failed", "message": str(e) }, status=status.HTTP_400_BAD_REQUEST)
+        
+    def get(self,request):
+        role,user=getuserinfo(request)
+        
+        try:
+            if role==MANAGER:
+                sellers=SellerDetail.objects.filter(is_active=True,approval_status="pending")
+                data=[]
+                for seller in sellers:
+                    data.append({
+                        "seller_id":seller.id,
+                        "bussiness_name": seller.bussiness_name,
+                        "bussiness_email": seller.bussiness_email,
+                        "bussiness_ph": seller.bussiness_ph,
+                        "bussiness_add": seller.bussiness_address,
+                        "shipping_add": seller.shipping_address,
+                        "organization": seller.organization,
+                        "category_id": seller.category.id,
+                        "documents":seller.documents
+                    })
+                return Response({"status":"success","message":"data retrieved successfully","data":data},status=status.HTTP_200_OK)
+            else:
+                return Response({"status":"error","message":"Only Manager retrieve seller details"},status=status.HTTP_400_BAD_REQUEST)
+        except SellerDetail.DoesNotExist:
+                return Response({"status":"error","message":"seller not found"},status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+                return Response({"status":"failed","message":str(e)},status=status.HTTP_400_BAD_REQUEST)
+
+        
+        
+            
+            
+        
+
