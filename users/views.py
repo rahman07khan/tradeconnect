@@ -391,6 +391,7 @@ class RoleLogin(APIView):
                         "status":"error",
                         "message":str(e)
                     },status=status.HTTP_400_BAD_REQUEST)
+
 class SellerApproval(APIView):
     def post(self,request):
         user=request.user
@@ -466,8 +467,7 @@ class SellerApproval(APIView):
                 "status":"error",
                 "message":str(e)
             },status=status.HTTP_400_BAD_REQUEST)
-                
-   
+                  
 class RolemappingView(APIView):
     def get(self,request):
         try:
@@ -586,7 +586,7 @@ class SellerRegistrationAPI(APIView):
         
         try:
             if role==MANAGER:
-                sellers=SellerDetail.objects.filter(is_active=True,approval_status="pending")
+                sellers=SellerDetail.objects.filter(is_active=True,approval_status=PENDING)
                 data=[]
                 for seller in sellers:
                     data.append({
@@ -608,8 +608,35 @@ class SellerRegistrationAPI(APIView):
         except Exception as e:
                 return Response({"status":"failed","message":str(e)},status=status.HTTP_400_BAD_REQUEST)
 
+    def put(self,request):
+        role,user_id=getuserinfo(request)
+        seller_id=request.data.get("seller_id")
+        is_approval=request.data.get("is_approval")
         
-        
+        try:
+            if role !=MANAGER:
+                return Response({"status":"error","message":"Only Manager approve seller "},status=status.HTTP_400_BAD_REQUEST)
+            try:
+                transaction.set_autocommit(False)
+                seller=SellerDetail.objects.get(id=seller_id,is_active=True)
+                seller.approval_status=is_approval
+                user=CustomUser.objects.get(id=seller.user.id,is_active=True)
+                if not user.is_approval:    
+                    if seller.approval_status==ACCEPTED:
+                        user.is_approval=True
+                        user.save()
+                seller.save()
+                transaction.commit()
+                return Response({"status":"sucess","message": "Seller approval status updated successfully"}, status=status.HTTP_201_CREATED)
+            
+
+            except SellerDetail.DoesNotExist or CustomUser.DoesNotExist:
+                transaction.rollback()
+                return Response({"status":"error","message":"data not found"},status=status.HTTP_400_BAD_REQUEST)  
+              
+        except Exception as e:
+            transaction.rollback()
+            return Response({"status":"failed","message":str(e)},status=status.HTTP_400_BAD_REQUEST)
             
             
         

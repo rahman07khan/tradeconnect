@@ -4,6 +4,8 @@ MANAGER = "manager"
 SELLER = "seller"
 CREDIT = "credit"
 DEBIT = "debit"
+ACCEPTED="accepted"
+PENDING="pending"
 
 from django.db import transaction
 from datetime import timedelta

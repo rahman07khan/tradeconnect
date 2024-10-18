@@ -613,7 +613,7 @@ class CartItemUserApi(APIView):
         try:
             user=CustomUser.objects.get(id=users.id)
             # rolemap=Rolemapping.objects.get(user_id=users.id)
-            rolename,user = getuserinfo(request)
+            rolename,user_id = getuserinfo(request)
             print(rolename)
             if rolename!='buyer':
                 return Response({
